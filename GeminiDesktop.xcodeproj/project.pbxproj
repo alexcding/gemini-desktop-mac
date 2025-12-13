@@ -347,7 +347,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -365,7 +365,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.0.2;
+				MARKETING_VERSION = 0.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alexcding.geminidesktop;
 				PRODUCT_NAME = "Gemini Desktop";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -386,7 +386,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 8Z3UH5979Z;
 				ENABLE_APP_SANDBOX = YES;
@@ -405,7 +405,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.0.2;
+				MARKETING_VERSION = 0.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alexcding.geminidesktop;
 				PRODUCT_NAME = "Gemini Desktop";
 				PROVISIONING_PROFILE_SPECIFIER = "";
