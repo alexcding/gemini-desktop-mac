@@ -96,7 +96,7 @@ class AppCoordinator {
     }
 
     func showChatBar() {
-        // Hide main window since we share the same WebView
+        // Hide main window when showing chat bar
         closeMainWindow()
 
         if let bar = chatBar {
@@ -202,7 +202,7 @@ struct ChatBarContent: View {
 
 // MARK: - Main Window Content View
 struct MainWindowContent: View {
-    let coordinator: AppCoordinator
+    @Binding var coordinator: AppCoordinator
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {

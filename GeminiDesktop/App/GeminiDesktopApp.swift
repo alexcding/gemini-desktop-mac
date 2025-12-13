@@ -24,7 +24,7 @@ struct GeminiDesktopApp: App {
     var body: some Scene {
         // Main Window
         Window("Gemini Desktop", id: "main") {
-            MainWindowContent(coordinator: coordinator)
+            MainWindowContent(coordinator: $coordinator)
                 .toolbarBackground(Color(red: 241/255, green: 244/255, blue: 248/255), for: .windowToolbar)
                 .frame(minWidth: 400, minHeight: 300)
         }
@@ -34,11 +34,10 @@ struct GeminiDesktopApp: App {
         // Settings Window
         Window("Settings", id: "settings") {
             ScrollView {
-                SettingsView(coordinator: coordinator)
+                SettingsView(coordinator: $coordinator)
             }
-            .frame(minWidth: 800, minHeight: 600)
         }
-        .defaultSize(width: 1300, height: 1000)
+        .defaultSize(width: 500, height: 200)
 
         // Menu Bar
         MenuBarExtra {
@@ -122,8 +121,16 @@ struct MenuBarContentView: View {
 // MARK: - App Delegate
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Run as menu bar app only (no dock icon, no main window)
-        NSApp.setActivationPolicy(.accessory)
+        let showWindowAtLaunch = UserDefaults.standard.object(forKey: "showWindowAtLaunch") as? Bool ?? true
+
+        if showWindowAtLaunch {
+            // Show dock icon and open main window
+            NSApp.setActivationPolicy(.regular)
+            NotificationCenter.default.post(name: .openMainWindow, object: nil)
+        } else {
+            // Hide dock icon, window is already suppressed
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
