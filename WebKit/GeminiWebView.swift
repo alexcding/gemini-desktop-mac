@@ -2,202 +2,144 @@
 //  GeminiWebView.swift
 //  GeminiDesktop
 //
-//  Created by alexcding on 2025-12-13.
+//  Created by alexcding on 2025-12-15.
 //
 
-import SwiftUI
 import WebKit
+import Combine
 
-struct GeminiWebView: NSViewRepresentable {
-    let webView: WKWebView
+/// Observable wrapper around WKWebView with Gemini-specific functionality
+@Observable
+class GeminiWebView {
 
-    func makeNSView(context: Context) -> WebViewContainer {
-        let container = WebViewContainer(webView: webView, coordinator: context.coordinator)
-        return container
+    // MARK: - Constants
+
+    static let geminiURL = URL(string: "https://gemini.google.com/app")!
+    static let defaultPageZoom: Double = 1.0
+
+    private static let geminiHost = "gemini.google.com"
+    private static let geminiAppPath = "/app"
+    private static let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+    private static let minZoom: Double = 0.6
+    private static let maxZoom: Double = 1.4
+
+    // MARK: - Public Properties
+
+    let wkWebView: WKWebView
+    private(set) var canGoBack: Bool = false
+    private(set) var canGoForward: Bool = false
+    private(set) var isAtHome: Bool = true
+
+    // MARK: - Private Properties
+
+    private var backObserver: NSKeyValueObservation?
+    private var forwardObserver: NSKeyValueObservation?
+    private var urlObserver: NSKeyValueObservation?
+
+    // MARK: - Initialization
+
+    init() {
+        self.wkWebView = Self.createWebView()
+        setupObservers()
+        loadHome()
     }
 
-    func updateNSView(_ container: WebViewContainer, context: Context) {}
+    // MARK: - Navigation
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
+    func loadHome() {
+        isAtHome = true
+        canGoBack = false
+        wkWebView.load(URLRequest(url: Self.geminiURL))
     }
 
-    class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
-        private var downloadDestination: URL?
+    func goBack() {
+        isAtHome = false
+        wkWebView.goBack()
+    }
 
-        func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-            if navigationAction.targetFrame == nil, let url = navigationAction.request.url {
-                webView.load(URLRequest(url: url))
-            }
-            return nil
+    func goForward() {
+        wkWebView.goForward()
+    }
+
+    func reload() {
+        wkWebView.reload()
+    }
+
+    // MARK: - Zoom
+
+    func zoomIn() {
+        let newZoom = min((wkWebView.pageZoom * 100 + 1).rounded() / 100, Self.maxZoom)
+        setZoom(newZoom)
+    }
+
+    func zoomOut() {
+        let newZoom = max((wkWebView.pageZoom * 100 - 1).rounded() / 100, Self.minZoom)
+        setZoom(newZoom)
+    }
+
+    func resetZoom() {
+        setZoom(Self.defaultPageZoom)
+    }
+
+    private func setZoom(_ zoom: Double) {
+        wkWebView.pageZoom = zoom
+        UserDefaults.standard.set(zoom, forKey: UserDefaultsKeys.pageZoom.rawValue)
+    }
+
+    // MARK: - Private Setup
+
+    private static func createWebView() -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .default()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+        configuration.mediaTypesRequiringUserActionForPlayback = []
+
+        for script in UserScripts.createAllScripts() {
+            configuration.userContentController.addUserScript(script)
         }
 
-        func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
-            if navigationResponse.canShowMIMEType {
-                decisionHandler(.allow)
-            } else {
-                decisionHandler(.download)
-            }
-        }
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.allowsBackForwardNavigationGestures = true
+        webView.allowsLinkPreview = true
+        webView.customUserAgent = userAgent
 
-        func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
-            download.delegate = self
-        }
+        let savedZoom = UserDefaults.standard.double(forKey: UserDefaultsKeys.pageZoom.rawValue)
+        webView.pageZoom = savedZoom > 0 ? savedZoom : defaultPageZoom
 
-        func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
-            download.delegate = self
-        }
+        return webView
+    }
 
-        func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
-            let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
-            var destination = downloadsURL.appendingPathComponent(suggestedFilename)
-
-            // Handle duplicate filenames
-            var counter = 1
-            let fileManager = FileManager.default
-            let nameWithoutExtension = destination.deletingPathExtension().lastPathComponent
-            let fileExtension = destination.pathExtension
-
-            while fileManager.fileExists(atPath: destination.path) {
-                let newName = fileExtension.isEmpty
-                    ? "\(nameWithoutExtension) (\(counter))"
-                    : "\(nameWithoutExtension) (\(counter)).\(fileExtension)"
-                destination = downloadsURL.appendingPathComponent(newName)
-                counter += 1
-            }
-
-            downloadDestination = destination
-            completionHandler(destination)
-        }
-
-        func downloadDidFinish(_ download: WKDownload) {
-            guard let destination = downloadDestination else { return }
-            NSWorkspace.shared.activateFileViewerSelecting([destination])
-        }
-
-        func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
-            let alert = NSAlert()
-            alert.messageText = "Download Failed"
-            alert.informativeText = error.localizedDescription
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
-        }
-
-        func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
-            let alert = NSAlert()
-            alert.messageText = message
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
-            completionHandler()
-        }
-
-        func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
-            let alert = NSAlert()
-            alert.messageText = message
-            alert.addButton(withTitle: "OK")
-            alert.addButton(withTitle: "Cancel")
-            completionHandler(alert.runModal() == .alertFirstButtonReturn)
-        }
-
-        func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void) {
-            let alert = NSAlert()
-            alert.messageText = prompt
-            alert.addButton(withTitle: "OK")
-            alert.addButton(withTitle: "Cancel")
-
-            let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: GeminiWebView.Constants.textFieldWidth, height: GeminiWebView.Constants.textFieldHeight))
-            textField.stringValue = defaultText ?? ""
-            alert.accessoryView = textField
-
-            completionHandler(alert.runModal() == .alertFirstButtonReturn ? textField.stringValue : nil)
-        }
-
-        func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
-            decisionHandler(origin.host.contains(GeminiWebView.Constants.trustedHost) ? .grant : .prompt)
-        }
-
-        func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
-            let panel = NSOpenPanel()
-            panel.allowsMultipleSelection = parameters.allowsMultipleSelection
-            panel.canChooseDirectories = parameters.allowsDirectories
-            panel.canChooseFiles = true
-            panel.begin { response in
-                completionHandler(response == .OK ? panel.urls : nil)
+    private func setupObservers() {
+        backObserver = wkWebView.observe(\.canGoBack, options: [.new, .initial]) { [weak self] webView, _ in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.canGoBack = !self.isAtHome && webView.canGoBack
             }
         }
-    }
-}
 
-class WebViewContainer: NSView {
-    let webView: WKWebView
-    let coordinator: GeminiWebView.Coordinator
-    private var windowObserver: NSObjectProtocol?
+        forwardObserver = wkWebView.observe(\.canGoForward, options: [.new, .initial]) { [weak self] webView, _ in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.canGoForward = webView.canGoForward
+            }
+        }
 
-    init(webView: WKWebView, coordinator: GeminiWebView.Coordinator) {
-        self.webView = webView
-        self.coordinator = coordinator
-        super.init(frame: .zero)
-        autoresizesSubviews = true
-        setupWindowObserver()
-    }
+        urlObserver = wkWebView.observe(\.url, options: .new) { [weak self] webView, _ in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                guard let currentURL = webView.url else { return }
 
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+                let isGeminiApp = currentURL.host == Self.geminiHost &&
+                                  currentURL.path.hasPrefix(Self.geminiAppPath)
 
-    deinit {
-        if let observer = windowObserver {
-            NotificationCenter.default.removeObserver(observer)
+                if isGeminiApp {
+                    self.isAtHome = true
+                    self.canGoBack = false
+                } else {
+                    self.isAtHome = false
+                    self.canGoBack = webView.canGoBack
+                }
+            }
         }
     }
-
-    private func setupWindowObserver() {
-        // Observe when ANY window becomes key - then check if we should have the webView
-        windowObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.didBecomeKeyNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            guard let self = self,
-                  let keyWindow = notification.object as? NSWindow,
-                  self.window === keyWindow else { return }
-            // Our window became key, attach webView
-            self.attachWebView()
-        }
-    }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if window != nil && window?.isKeyWindow == true {
-            attachWebView()
-        }
-    }
-
-    override func layout() {
-        super.layout()
-        if webView.superview === self {
-            webView.frame = bounds
-        }
-    }
-
-    private func attachWebView() {
-        guard webView.superview !== self else { return }
-        webView.removeFromSuperview()
-        webView.frame = bounds
-        webView.autoresizingMask = [.width, .height]
-        webView.navigationDelegate = coordinator
-        webView.uiDelegate = coordinator
-        addSubview(webView)
-    }
-}
-
-
-extension GeminiWebView {
-
-    struct Constants {
-        static let textFieldWidth: CGFloat = 200
-        static let textFieldHeight: CGFloat = 24
-        static let trustedHost = "google.com"
-    }
-
 }

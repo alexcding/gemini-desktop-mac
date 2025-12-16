@@ -43,7 +43,7 @@ struct SettingsView: View {
                             value: $pageZoom,
                             in: Constants.minPageZoom...Constants.maxPageZoom,
                             step: Constants.pageZoomStep)
-                        .onChange(of: pageZoom) { coordinator.webView.pageZoom = $1 }
+                        .onChange(of: pageZoom) { coordinator.geminiWebView.wkWebView.pageZoom = $1 }
                         .labelsHidden()
                 }
             }

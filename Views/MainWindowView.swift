@@ -13,7 +13,7 @@ struct MainWindowView: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        GeminiWebView(webView: coordinator.webView)
+        GeminiWebViewRepresentable(webView: coordinator.geminiWebView.wkWebView)
             .onAppear {
                 coordinator.openWindowAction = { id in
                     openWindow(id: id)
