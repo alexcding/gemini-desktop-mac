@@ -93,6 +93,18 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
 
         minSize = NSSize(width: Constants.minWidth, height: Constants.minHeight)
         maxSize = NSSize(width: Constants.maxWidth, height: Constants.maxHeight)
+
+        // Add global click monitor to dismiss when clicking outside
+        setupClickOutsideMonitor()
+    }
+
+    private var clickOutsideMonitor: Any?
+
+    private func setupClickOutsideMonitor() {
+        clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            guard let self = self, self.isVisible else { return }
+            self.orderOut(nil)
+        }
     }
 
     private func configureAppearance() {
@@ -191,6 +203,9 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
 
     deinit {
         pollingTimer?.invalidate()
+        if let monitor = clickOutsideMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
     }
 
     // MARK: - NSWindowDelegate
