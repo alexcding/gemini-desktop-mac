@@ -29,6 +29,8 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
     private var isExpanded = false
     private var pollingTimer: Timer?
     private weak var webView: WKWebView?
+    private var onHideCallback: (() -> Void)?
+    private var lastShownTime: Date?
 
     // Returns true if in a conversation (not on start page)
     private let checkConversationScript = """
@@ -41,7 +43,7 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
         })();
         """
 
-    init(contentView: NSView) {
+    init(contentView: NSView, onHide: (() -> Void)? = nil) {
         let width = UserDefaults.standard.double(forKey: UserDefaultsKeys.panelWidth.rawValue)
         let height = UserDefaults.standard.double(forKey: UserDefaultsKeys.panelHeight.rawValue)
         let initWidth = width > 0 ? width : Constants.defaultWidth
@@ -60,6 +62,7 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
 
         self.contentView = contentView
         self.delegate = self
+        self.onHideCallback = onHide
 
         configureWindow()
         configureAppearance()
@@ -103,7 +106,39 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
     private func setupClickOutsideMonitor() {
         clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
             guard let self = self, self.isVisible else { return }
-            self.orderOut(nil)
+            
+            // Ignore clicks that happen too soon after window is shown
+            // This prevents the window from being hidden immediately after being shown via keyboard shortcut
+            if let lastShown = self.lastShownTime {
+                let timeSinceShown = Date().timeIntervalSince(lastShown)
+                if timeSinceShown < Constants.clickIgnoreDelay {
+                    return
+                }
+            }
+            
+            // Check if the click happened in our window
+            // For global events, event.window might be nil, so we check coordinates
+            let clickWindow = event.window
+            
+            // If the click is in our window, don't hide
+            if clickWindow === self {
+                return
+            }
+            
+            // Get the click location in screen coordinates
+            // For global events, locationInWindow is in screen coordinates (bottom-left origin)
+            let screenPoint = NSPoint(x: event.locationInWindow.x, y: event.locationInWindow.y)
+            let windowFrame = self.frame
+            
+            // Check if click is outside the window frame
+            if !windowFrame.contains(screenPoint) {
+                // Call the hide callback if provided, otherwise just hide the window
+                if let callback = self.onHideCallback {
+                    callback()
+                } else {
+                    self.orderOut(nil)
+                }
+            }
         }
     }
 
@@ -220,6 +255,17 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+    
+    // Track when window becomes visible to prevent immediate hiding
+    override func orderFront(_ sender: Any?) {
+        super.orderFront(sender)
+        lastShownTime = Date()
+    }
+    
+    override func makeKeyAndOrderFront(_ sender: Any?) {
+        super.makeKeyAndOrderFront(sender)
+        lastShownTime = Date()
+    }
 }
 
 
@@ -239,6 +285,7 @@ extension ChatBarPanel {
         static let pollingInterval: TimeInterval = 1.0
         static let initialPollingDelay: TimeInterval = 3.0
         static let webViewSearchDelay: TimeInterval = 0.5
+        static let clickIgnoreDelay: TimeInterval = 0.2 // Ignore clicks within 200ms of showing window
 
     }
 }
