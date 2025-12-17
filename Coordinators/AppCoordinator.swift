@@ -64,7 +64,9 @@ class AppCoordinator {
             }
         )
         let hostingView = NSHostingView(rootView: contentView)
-        let bar = ChatBarPanel(contentView: hostingView)
+        let bar = ChatBarPanel(contentView: hostingView, onHide: { [weak self] in
+            self?.hideChatBar()
+        })
 
         // Position at bottom center, above the dock
         if let screen = NSScreen.main {
