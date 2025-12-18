@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7452D53F2EF462A400EDD8A4 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 7452D53E2EF462A400EDD8A4 /* Sparkle */; };
 		74CBD8C02EED900000F226E3 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 74CBD8BF2EED900000F226E3 /* KeyboardShortcuts */; };
 /* End PBXBuildFile section */
 
@@ -114,6 +115,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				74CBD8C02EED900000F226E3 /* KeyboardShortcuts in Frameworks */,
+				7452D53F2EF462A400EDD8A4 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -164,6 +166,7 @@
 			name = GeminiDesktop;
 			packageProductDependencies = (
 				74CBD8BF2EED900000F226E3 /* KeyboardShortcuts */,
+				7452D53E2EF462A400EDD8A4 /* Sparkle */,
 			);
 			productName = GeminiDesktop;
 			productReference = 74CBD8AA2EED8FCB00F226E3 /* Gemini Desktop.app */;
@@ -195,6 +198,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				74CBD8BE2EED900000F226E3 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+				7452D53D2EF462A400EDD8A4 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 74CBD8AB2EED8FCB00F226E3 /* Products */;
@@ -477,17 +481,30 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		7452D53D2EF462A400EDD8A4 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.8.1;
+			};
+		};
 		74CBD8BE2EED900000F226E3 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.0.0;
+				minimumVersion = 2.4.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		7452D53E2EF462A400EDD8A4 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7452D53D2EF462A400EDD8A4 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
 		74CBD8BF2EED900000F226E3 /* KeyboardShortcuts */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 74CBD8BE2EED900000F226E3 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;

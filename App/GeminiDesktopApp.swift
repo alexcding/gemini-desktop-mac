@@ -9,6 +9,7 @@ import SwiftUI
 import KeyboardShortcuts
 import AppKit
 import Combine
+import Sparkle
 
 // MARK: - Keyboard Shortcut Definition
 extension KeyboardShortcuts.Name {
@@ -22,6 +23,13 @@ struct GeminiDesktopApp: App {
     @State var coordinator = AppCoordinator()
     @Environment(\.openWindow) private var openWindow
 
+    // Sparkle updater controller - handles auto-update lifecycle
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+    )
+
     var body: some Scene {
         Window(AppCoordinator.Constants.mainWindowTitle, id: Constants.mainWindowID) {
             MainWindowView(coordinator: $coordinator)
@@ -31,6 +39,10 @@ struct GeminiDesktopApp: App {
         .defaultSize(width: Constants.mainWindowDefaultWidth, height: Constants.mainWindowDefaultHeight)
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
+            // Check for Updates command in the app menu
+            CommandGroup(after: .appInfo) {
+                CheckForUpdatesView(updater: updaterController.updater)
+            }
             CommandGroup(after: .toolbar) {
                 Button {
                     coordinator.goBack()
@@ -90,12 +102,12 @@ struct GeminiDesktopApp: App {
         }
 
         Settings {
-            SettingsView(coordinator: $coordinator)
+            SettingsView(coordinator: $coordinator, updater: updaterController.updater)
         }
         .defaultSize(width: Constants.settingsWindowDefaultWidth, height: Constants.settingsWindowDefaultHeight)
 
         MenuBarExtra {
-            MenuBarView(coordinator: $coordinator)
+            MenuBarView(coordinator: $coordinator, updater: updaterController.updater)
         } label: {
             Image(systemName: Constants.menuBarIcon)
                 .onAppear {

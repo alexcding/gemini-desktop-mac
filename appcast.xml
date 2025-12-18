@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Gemini Desktop Updates</title>
+    <link>https://github.com/alexcding/gemini-desktop-mac</link>
+    <description>Most recent updates to Gemini Desktop</description>
+    <language>en</language>
+
+    <!--
+    INSTRUCTIONS:
+    1. Generate Ed25519 keys using: ./bin/generate_keys (from Sparkle package)
+       Or via: sparkle-sign -g (generates private key, prints public key)
+    2. Put the PUBLIC key in Info.plist under SUPublicEDKey
+    3. Keep the PRIVATE key safe (needed for signing releases)
+    4. For each release:
+       - Build and archive your app
+       - Export as DMG
+       - Sign it: sparkle-sign /path/to/YourApp.dmg
+       - Add a new <item> below with the signature
+    -->
+
+    <item>
+      <title>Version 0.0.5</title>
+      <pubDate>Wed, 18 Dec 2024 12:00:00 +0000</pubDate>
+      <sparkle:version>5</sparkle:version>
+      <sparkle:shortVersionString>0.0.5</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h2>What's New in 0.0.5</h2>
+        <ul>
+          <li>Added auto-update support via Sparkle</li>
+          <li>Bug fixes and improvements</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/alexcding/gemini-desktop-mac/releases/download/v0.0.5/GeminiDesktop-0.0.5.dmg"
+        type="application/octet-stream"
+        sparkle:edSignature="SIGNATURE_HERE"
+        length="0"/>
+    </item>
+
+  </channel>
+</rss>

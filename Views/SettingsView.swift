@@ -2,9 +2,11 @@ import SwiftUI
 import KeyboardShortcuts
 import WebKit
 import ServiceManagement
+import Sparkle
 
 struct SettingsView: View {
     @Binding var coordinator: AppCoordinator
+    let updater: SPUUpdater
     @AppStorage(UserDefaultsKeys.pageZoom.rawValue) private var pageZoom: Double = Constants.defaultPageZoom
     @AppStorage(UserDefaultsKeys.hideWindowAtLaunch.rawValue) private var hideWindowAtLaunch: Bool = false
     @AppStorage(UserDefaultsKeys.hideDockIcon.rawValue) private var hideDockIcon: Bool = false
@@ -46,6 +48,25 @@ struct SettingsView: View {
                         .onChange(of: pageZoom) { coordinator.webViewModel.wkWebView.pageZoom = $1 }
                         .labelsHidden()
                 }
+            }
+            Section("Updates") {
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("Check for Updates")
+                        Text("Current version: \(Bundle.main.appVersionString)")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    CheckForUpdatesView(updater: updater)
+                }
+                Toggle("Automatically check for updates", isOn: Binding(
+                    get: { updater.automaticallyChecksForUpdates },
+                    set: { updater.automaticallyChecksForUpdates = $0 }
+                ))
+                Toggle("Automatically download updates", isOn: Binding(
+                    get: { updater.automaticallyDownloadsUpdates },
+                    set: { updater.automaticallyDownloadsUpdates = $0 }
+                ))
             }
             Section("Privacy") {
                 HStack {
@@ -91,4 +112,12 @@ extension SettingsView {
         static let pageZoomStep: Double = 0.01
     }
 
+}
+
+extension Bundle {
+    var appVersionString: String {
+        let version = infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+        let build = infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
+        return "\(version) (\(build))"
+    }
 }

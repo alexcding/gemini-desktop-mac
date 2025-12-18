@@ -7,9 +7,11 @@
 
 import SwiftUI
 import AppKit
+import Sparkle
 
 struct MenuBarView: View {
     @Binding var coordinator: AppCoordinator
+    let updater: SPUUpdater
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -27,6 +29,8 @@ struct MenuBarView: View {
             }
 
             Divider()
+
+            CheckForUpdatesView(updater: updater)
 
             SettingsLink {
                 Label("Settings...", systemImage: "gearshape")
