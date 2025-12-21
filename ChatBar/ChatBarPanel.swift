@@ -41,6 +41,20 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
         })();
         """
 
+    // JavaScript to focus the input field
+    private let focusInputScript = """
+        (function() {
+            const input = document.querySelector('rich-textarea[aria-label="Enter a prompt here"]') ||
+                          document.querySelector('[contenteditable="true"]') ||
+                          document.querySelector('textarea');
+            if (input) {
+                input.focus();
+                return true;
+            }
+            return false;
+        })();
+        """
+
     init(contentView: NSView) {
         let width = UserDefaults.standard.double(forKey: UserDefaultsKeys.panelWidth.rawValue)
         let height = UserDefaults.standard.double(forKey: UserDefaultsKeys.panelHeight.rawValue)
@@ -183,6 +197,9 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
     func checkAndAdjustSize() {
         guard let webView = webView else { return }
 
+        // Focus the input field
+        focusInput()
+
         webView.evaluateJavaScript(checkConversationScript) { [weak self] result, _ in
             guard let self = self else { return }
             DispatchQueue.main.async {
@@ -199,6 +216,12 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
                 }
             }
         }
+    }
+
+    /// Focus the input field in the WebView
+    func focusInput() {
+        guard let webView = webView else { return }
+        webView.evaluateJavaScript(focusInputScript, completionHandler: nil)
     }
 
     deinit {
