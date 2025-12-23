@@ -42,6 +42,7 @@
 		749D25F32EEE2C330054BA29 /* Exceptions for "Utils" folder in "GeminiDesktop" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				"NSScreen+Extensions.swift",
 				UserDefaultsKeys.swift,
 			);
 			target = 74CBD8A92EED8FCB00F226E3 /* GeminiDesktop */;

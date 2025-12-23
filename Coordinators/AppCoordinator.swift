@@ -50,7 +50,8 @@ class AppCoordinator {
         closeMainWindow()
 
         if let bar = chatBar {
-            // Reuse existing chat bar
+            // Reuse existing chat bar - reposition to current mouse screen
+            repositionChatBarToMouseScreen(bar)
             bar.orderFront(nil)
             bar.makeKeyAndOrderFront(nil)
             bar.checkAndAdjustSize()
@@ -66,18 +67,22 @@ class AppCoordinator {
         let hostingView = NSHostingView(rootView: contentView)
         let bar = ChatBarPanel(contentView: hostingView)
 
-        // Position at bottom center, above the dock
-        if let screen = NSScreen.main {
-            let screenRect = screen.visibleFrame
-            let barSize = bar.frame.size
-            let x = screenRect.origin.x + (screenRect.width - barSize.width) / 2
-            let y = screenRect.origin.y + Constants.dockOffset
-            bar.setFrameOrigin(NSPoint(x: x, y: y))
+        // Position at bottom center of the screen where mouse is located
+        if let screen = NSScreen.screenAtMouseLocation() {
+            let origin = screen.bottomCenterPoint(for: bar.frame.size, dockOffset: Constants.dockOffset)
+            bar.setFrameOrigin(origin)
         }
 
         bar.orderFront(nil)
         bar.makeKeyAndOrderFront(nil)
         chatBar = bar
+    }
+
+    /// Repositions an existing chat bar to the screen containing the mouse cursor
+    private func repositionChatBarToMouseScreen(_ bar: ChatBarPanel) {
+        guard let screen = NSScreen.screenAtMouseLocation() else { return }
+        let origin = screen.bottomCenterPoint(for: bar.frame.size, dockOffset: Constants.dockOffset)
+        bar.setFrameOrigin(origin)
     }
 
     func hideChatBar() {
@@ -104,11 +109,17 @@ class AppCoordinator {
     }
 
     func expandToMainWindow() {
+        // Capture the screen where the chat bar is located before hiding it
+        let targetScreen = chatBar.flatMap { bar -> NSScreen? in
+            let center = NSPoint(x: bar.frame.midX, y: bar.frame.midY)
+            return NSScreen.screen(containing: center)
+        } ?? NSScreen.main
+
         hideChatBar()
-        openMainWindow()
+        openMainWindow(on: targetScreen)
     }
 
-    func openMainWindow() {
+    func openMainWindow(on targetScreen: NSScreen? = nil) {
         // Hide chat bar first - WebView can only be in one view hierarchy
         hideChatBar()
 
@@ -118,19 +129,54 @@ class AppCoordinator {
         }
 
         // Find existing main window (may be hidden/suppressed)
-        let mainWindow = NSApp.windows.first(where: {
-            $0.identifier?.rawValue == Constants.mainWindowIdentifier || $0.title == Constants.mainWindowTitle
-        })
+        let mainWindow = findMainWindow()
 
         if let window = mainWindow {
             // Window exists - show it (works for suppressed windows too)
+            if let screen = targetScreen {
+                centerWindow(window, on: screen)
+            }
             window.makeKeyAndOrderFront(nil)
         } else if let openWindowAction = openWindowAction {
             // Window doesn't exist yet - use SwiftUI openWindow to create it
             openWindowAction("main")
+            // Position newly created window with retry mechanism
+            if let screen = targetScreen {
+                centerNewlyCreatedWindow(on: screen)
+            }
         }
 
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Finds the main window by identifier or title
+    private func findMainWindow() -> NSWindow? {
+        NSApp.windows.first {
+            $0.identifier?.rawValue == Constants.mainWindowIdentifier || $0.title == Constants.mainWindowTitle
+        }
+    }
+
+    /// Centers a window on the specified screen
+    private func centerWindow(_ window: NSWindow, on screen: NSScreen) {
+        let origin = screen.centerPoint(for: window.frame.size)
+        window.setFrameOrigin(origin)
+    }
+
+    /// Centers a newly created window on the target screen with retry mechanism
+    private func centerNewlyCreatedWindow(on screen: NSScreen, attempt: Int = 1) {
+        let maxAttempts = 5
+        let retryDelay = 0.05 // 50ms between attempts
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + retryDelay) { [weak self] in
+            guard let self = self else { return }
+
+            if let window = self.findMainWindow() {
+                self.centerWindow(window, on: screen)
+            } else if attempt < maxAttempts {
+                // Window not found yet, retry
+                self.centerNewlyCreatedWindow(on: screen, attempt: attempt + 1)
+            }
+        }
     }
 }
 

@@ -20,9 +20,15 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
         )
     }
 
+    /// Returns the screen where this panel is currently located
+    private var currentScreen: NSScreen? {
+        let panelCenter = NSPoint(x: frame.midX, y: frame.midY)
+        return NSScreen.screen(containing: panelCenter)
+    }
+
     // Expanded height: 70% of screen height or initial height, whichever is larger
     private var expandedHeight: CGFloat {
-        let screenHeight = NSScreen.main?.visibleFrame.height ?? 800
+        let screenHeight = currentScreen?.visibleFrame.height ?? 800
         return max(screenHeight * Constants.expandedScreenRatio, initialSize.height)
     }
 
@@ -38,6 +44,20 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
             const hasResponseContainer = scroller.querySelector('response-container') !== null;
             const hasRatingButtons = scroller.querySelector('[aria-label="Good response"], [aria-label="Bad response"]') !== null;
             return hasResponseContainer || hasRatingButtons;
+        })();
+        """
+
+    // JavaScript to focus the input field
+    private let focusInputScript = """
+        (function() {
+            const input = document.querySelector('rich-textarea[aria-label="Enter a prompt here"]') ||
+                          document.querySelector('[contenteditable="true"]') ||
+                          document.querySelector('textarea');
+            if (input) {
+                input.focus();
+                return true;
+            }
+            return false;
         })();
         """
 
@@ -149,6 +169,15 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
 
         let currentFrame = self.frame
 
+        // Calculate the maximum available height from the current position to the top of the screen
+        guard let screen = currentScreen else { return }
+        let visibleFrame = screen.visibleFrame
+        let maxAvailableHeight = visibleFrame.maxY - currentFrame.origin.y
+        
+        // Use the smaller of expandedHeight and available space, with some padding
+        let targetHeight = min(self.expandedHeight, maxAvailableHeight - Constants.topPadding)
+        let clampedHeight = max(targetHeight, initialSize.height) // Don't shrink below initial size
+
         NSAnimationContext.runAnimationGroup { context in
             context.duration = Constants.animationDuration
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
@@ -157,7 +186,7 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
                 x: currentFrame.origin.x,
                 y: currentFrame.origin.y,
                 width: currentFrame.width,
-                height: self.expandedHeight
+                height: clampedHeight
             )
             self.animator().setFrame(newFrame, display: true)
         }
@@ -183,6 +212,9 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
     func checkAndAdjustSize() {
         guard let webView = webView else { return }
 
+        // Focus the input field
+        focusInput()
+
         webView.evaluateJavaScript(checkConversationScript) { [weak self] result, _ in
             guard let self = self else { return }
             DispatchQueue.main.async {
@@ -201,6 +233,12 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
         }
     }
 
+    /// Focus the input field in the WebView
+    func focusInput() {
+        guard let webView = webView else { return }
+        webView.evaluateJavaScript(focusInputScript, completionHandler: nil)
+    }
+
     deinit {
         pollingTimer?.invalidate()
         if let monitor = clickOutsideMonitor {
@@ -216,6 +254,13 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
 
         UserDefaults.standard.set(frame.width, forKey: UserDefaultsKeys.panelWidth.rawValue)
         UserDefaults.standard.set(frame.height, forKey: UserDefaultsKeys.panelHeight.rawValue)
+    }
+
+    // MARK: - Keyboard Handling
+
+    /// Handle ESC key to hide the chat bar
+    override func cancelOperation(_ sender: Any?) {
+        orderOut(nil)
     }
 
     override var canBecomeKey: Bool { true }
@@ -239,6 +284,7 @@ extension ChatBarPanel {
         static let pollingInterval: TimeInterval = 1.0
         static let initialPollingDelay: TimeInterval = 3.0
         static let webViewSearchDelay: TimeInterval = 0.5
+        static let topPadding: CGFloat = 20 // Padding from the top of the screen
 
     }
 }

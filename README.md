@@ -59,6 +59,12 @@ All functionality is provided entirely by the Gemini web app itself.
 
 ---
 
+## System Requirements
+
+- **macOS 14.0 (Sonoma)** or later
+
+---
+
 ## Installation
 
 ### Download
