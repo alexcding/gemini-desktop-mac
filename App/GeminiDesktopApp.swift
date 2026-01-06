@@ -24,11 +24,27 @@ struct GeminiDesktopApp: App {
     @Environment(\.openWindow) private var openWindow
 
     // Sparkle updater controller - handles auto-update lifecycle
-    private let updaterController = SPUStandardUpdaterController(
-        startingUpdater: true,
-        updaterDelegate: nil,
-        userDriverDelegate: nil
-    )
+    private let updaterController: SPUStandardUpdaterController
+
+    init() {
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: false,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
+
+        // Try to start updater silently - ignore errors during development
+        do {
+            try updaterController.updater.start()
+        } catch {
+            // Silently ignore updater startup errors
+            print(error)
+        }
+
+        KeyboardShortcuts.onKeyDown(for: .bringToFront) { [self] in
+            coordinator.toggleChatBar()
+        }
+    }
 
     var body: some Scene {
         Window(AppCoordinator.Constants.mainWindowTitle, id: Constants.mainWindowID) {
@@ -133,11 +149,6 @@ struct GeminiDesktopApp: App {
         .menuBarExtraStyle(.menu)
     }
 
-    init() {
-        KeyboardShortcuts.onKeyDown(for: .bringToFront) { [self] in
-            coordinator.toggleChatBar()
-        }
-    }
 }
 
 // MARK: - Constants
@@ -169,3 +180,4 @@ extension GeminiDesktopApp {
         static let hideWindowDelay: TimeInterval = 0.1
     }
 }
+
