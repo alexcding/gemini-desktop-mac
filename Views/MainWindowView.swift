@@ -18,6 +18,9 @@ struct MainWindowView: View {
                 coordinator.openWindowAction = { id in
                     openWindow(id: id)
                 }
+                // Apply Always on Top setting on launch
+                let alwaysOnTop = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alwaysOnTop.rawValue)
+                coordinator.setAlwaysOnTop(alwaysOnTop)
             }
             .toolbar {
                 if coordinator.canGoBack {

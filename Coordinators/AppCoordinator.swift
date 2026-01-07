@@ -137,12 +137,20 @@ class AppCoordinator {
                 centerWindow(window, on: screen)
             }
             window.makeKeyAndOrderFront(nil)
+            // Apply always on top setting
+            let alwaysOnTop = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alwaysOnTop.rawValue)
+            setAlwaysOnTop(alwaysOnTop)
         } else if let openWindowAction = openWindowAction {
             // Window doesn't exist yet - use SwiftUI openWindow to create it
             openWindowAction("main")
             // Position newly created window with retry mechanism
             if let screen = targetScreen {
                 centerNewlyCreatedWindow(on: screen)
+            }
+            // Apply always on top setting with slight delay to ensure window exists
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                let alwaysOnTop = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alwaysOnTop.rawValue)
+                self?.setAlwaysOnTop(alwaysOnTop)
             }
         }
 
@@ -177,6 +185,17 @@ class AppCoordinator {
                 self.centerNewlyCreatedWindow(on: screen, attempt: attempt + 1)
             }
         }
+    }
+    func setAlwaysOnTop(_ enable: Bool) {
+        let level: NSWindow.Level = enable ? .floating : .normal
+        
+        if let window = findMainWindow() {
+            window.level = level
+        }
+        
+        // Also update chat bar if it exists and should follow same behavior (optional, but requested for "application window")
+        // Usually chat bar is already floating/top, so maybe we leave it alone or ensure it stays top.
+        // But for now focusing on main window as requested.
     }
 }
 
