@@ -18,9 +18,22 @@ struct MainWindowView: View {
                 coordinator.openWindowAction = { id in
                     openWindow(id: id)
                 }
-                // Apply Always on Top setting on launch
+                // Apply Always on Top setting on launch with a delay to ensure window exists
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    let alwaysOnTop = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alwaysOnTop.rawValue)
+                    coordinator.setAlwaysOnTop(alwaysOnTop)
+                }
+            }
+            // Re-apply always on top when window becomes key (after switching from other apps)
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
+                guard let window = notification.object as? NSWindow,
+                      window.identifier?.rawValue == AppCoordinator.Constants.mainWindowIdentifier ||
+                      window.title == AppCoordinator.Constants.mainWindowTitle else { return }
                 let alwaysOnTop = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alwaysOnTop.rawValue)
-                coordinator.setAlwaysOnTop(alwaysOnTop)
+                if alwaysOnTop {
+                    window.level = .floating
+                    window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+                }
             }
             .toolbar {
                 if coordinator.canGoBack {

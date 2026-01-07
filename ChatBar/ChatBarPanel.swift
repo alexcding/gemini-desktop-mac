@@ -123,6 +123,13 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
     private func setupClickOutsideMonitor() {
         clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
             guard let self = self, self.isVisible else { return }
+            
+            // Don't hide if "Always on Top" is enabled
+            let alwaysOnTop = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alwaysOnTop.rawValue)
+            if alwaysOnTop {
+                return
+            }
+            
             self.orderOut(nil)
         }
     }
@@ -249,6 +256,24 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
     // MARK: - NSWindowDelegate
 
     func windowDidResize(_ notification: Notification) {
+        // Enforce minimum size constraints
+        var currentFrame = frame
+        var needsResize = false
+        
+        if currentFrame.width < minSize.width {
+            currentFrame.size.width = minSize.width
+            needsResize = true
+        }
+        
+        if currentFrame.height < minSize.height {
+            currentFrame.size.height = minSize.height
+            needsResize = true
+        }
+        
+        if needsResize {
+            setFrame(currentFrame, display: true)
+        }
+        
         // Only persist size when in initial (non-expanded) state
         guard !isExpanded else { return }
 
@@ -271,10 +296,10 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
 extension ChatBarPanel {
 
     struct Constants {
-        static let defaultWidth: CGFloat = 500
-        static let defaultHeight: CGFloat = 200
-        static let minWidth: CGFloat = 300
-        static let minHeight: CGFloat = 150
+        static let defaultWidth: CGFloat = 550
+        static let defaultHeight: CGFloat = 220
+        static let minWidth: CGFloat = 400
+        static let minHeight: CGFloat = 160
         static let maxWidth: CGFloat = 900
         static let maxHeight: CGFloat = 900
         static let cornerRadius: CGFloat = 30

@@ -187,15 +187,20 @@ class AppCoordinator {
         }
     }
     func setAlwaysOnTop(_ enable: Bool) {
-        let level: NSWindow.Level = enable ? .floating : .normal
-        
-        if let window = findMainWindow() {
-            window.level = level
+        // Use a slight delay to ensure the window is fully initialized
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self = self, let window = self.findMainWindow() else { return }
+            
+            if enable {
+                // Set window level to floating (above normal windows)
+                window.level = .floating
+                // Ensure window can join all spaces and stays visible
+                window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            } else {
+                window.level = .normal
+                window.collectionBehavior = [.fullScreenAuxiliary]
+            }
         }
-        
-        // Also update chat bar if it exists and should follow same behavior (optional, but requested for "application window")
-        // Usually chat bar is already floating/top, so maybe we leave it alone or ensure it stays top.
-        // But for now focusing on main window as requested.
     }
 }
 
