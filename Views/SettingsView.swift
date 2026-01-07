@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage(UserDefaultsKeys.pageZoom.rawValue) private var pageZoom: Double = Constants.defaultPageZoom
     @AppStorage(UserDefaultsKeys.hideWindowAtLaunch.rawValue) private var hideWindowAtLaunch: Bool = false
     @AppStorage(UserDefaultsKeys.hideDockIcon.rawValue) private var hideDockIcon: Bool = false
+    @AppStorage(UserDefaultsKeys.alwaysOnTop.rawValue) private var alwaysOnTop: Bool = false
 
     @State private var showingResetAlert = false
     @State private var isClearing = false
@@ -26,6 +27,10 @@ struct SettingsView: View {
                 Toggle("Hide Dock Icon", isOn: $hideDockIcon)
                     .onChange(of: hideDockIcon) { _, newValue in
                         NSApp.setActivationPolicy(newValue ? .accessory : .regular)
+                    }
+                Toggle("Always on Top", isOn: $alwaysOnTop)
+                    .onChange(of: alwaysOnTop) { _, newValue in
+                        coordinator.setAlwaysOnTop(newValue)
                     }
             }
             Section("Keyboard Shortcuts") {
