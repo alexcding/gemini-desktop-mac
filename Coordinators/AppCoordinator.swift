@@ -137,12 +137,20 @@ class AppCoordinator {
                 centerWindow(window, on: screen)
             }
             window.makeKeyAndOrderFront(nil)
+            // Apply always on top setting
+            let alwaysOnTop = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alwaysOnTop.rawValue)
+            setAlwaysOnTop(alwaysOnTop)
         } else if let openWindowAction = openWindowAction {
             // Window doesn't exist yet - use SwiftUI openWindow to create it
             openWindowAction("main")
             // Position newly created window with retry mechanism
             if let screen = targetScreen {
                 centerNewlyCreatedWindow(on: screen)
+            }
+            // Apply always on top setting with slight delay to ensure window exists
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                let alwaysOnTop = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alwaysOnTop.rawValue)
+                self?.setAlwaysOnTop(alwaysOnTop)
             }
         }
 
@@ -175,6 +183,22 @@ class AppCoordinator {
             } else if attempt < maxAttempts {
                 // Window not found yet, retry
                 self.centerNewlyCreatedWindow(on: screen, attempt: attempt + 1)
+            }
+        }
+    }
+    func setAlwaysOnTop(_ enable: Bool) {
+        // Use a slight delay to ensure the window is fully initialized
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self = self, let window = self.findMainWindow() else { return }
+            
+            if enable {
+                // Set window level to floating (above normal windows)
+                window.level = .floating
+                // Ensure window can join all spaces and stays visible
+                window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            } else {
+                window.level = .normal
+                window.collectionBehavior = [.fullScreenAuxiliary]
             }
         }
     }
