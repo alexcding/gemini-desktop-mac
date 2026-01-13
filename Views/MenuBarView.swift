@@ -20,12 +20,6 @@ struct MenuBarView: View {
                 Label("Open Gemini Desktop", systemImage: "macwindow")
             }
 
-            Button {
-                coordinator.toggleChatBar()
-            } label: {
-                Label("Toggle Chat Bar", systemImage: "rectangle.bottomhalf.inset.filled")
-            }
-
             Divider()
 
             SettingsLink {

@@ -14,5 +14,8 @@ enum UserDefaultsKeys: String {
     case hideWindowAtLaunch
     case hideDockIcon
     case alwaysOnTop
-
+    case mainWindowX
+    case mainWindowY
+    case mainWindowWidth
+    case mainWindowHeight
 }

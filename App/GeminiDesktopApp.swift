@@ -123,7 +123,7 @@ struct GeminiDesktopApp: App {
 
     init() {
         KeyboardShortcuts.onKeyDown(for: .bringToFront) { [self] in
-            coordinator.toggleChatBar()
+            coordinator.toggleMainWindow()
         }
     }
 }

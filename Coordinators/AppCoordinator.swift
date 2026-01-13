@@ -15,7 +15,6 @@ extension Notification.Name {
 
 @Observable
 class AppCoordinator {
-    private var chatBar: ChatBarPanel?
     var webViewModel = WebViewModel()
 
     var openWindowAction: ((String) -> Void)?
@@ -43,86 +42,26 @@ class AppCoordinator {
     func zoomOut() { webViewModel.zoomOut() }
     func resetZoom() { webViewModel.resetZoom() }
 
-    // MARK: - Chat Bar
-
-    func showChatBar() {
-        // Hide main window when showing chat bar
-        closeMainWindow()
-
-        if let bar = chatBar {
-            // Reuse existing chat bar - reposition to current mouse screen
-            repositionChatBarToMouseScreen(bar)
-            bar.orderFront(nil)
-            bar.makeKeyAndOrderFront(nil)
-            bar.checkAndAdjustSize()
+    // MARK: - Main Window Management
+    
+    /// Toggles the main window - if visible, hide it; if hidden, show it
+    func toggleMainWindow() {
+        guard let window = findMainWindow() else {
+            // Window doesn't exist, open it
+            openMainWindow()
             return
         }
-
-        let contentView = ChatBarView(
-            webView: webViewModel.wkWebView,
-            onExpandToMain: { [weak self] in
-                self?.expandToMainWindow()
-            }
-        )
-        let hostingView = NSHostingView(rootView: contentView)
-        let bar = ChatBarPanel(contentView: hostingView)
-
-        // Position at bottom center of the screen where mouse is located
-        if let screen = NSScreen.screenAtMouseLocation() {
-            let origin = screen.bottomCenterPoint(for: bar.frame.size, dockOffset: Constants.dockOffset)
-            bar.setFrameOrigin(origin)
-        }
-
-        bar.orderFront(nil)
-        bar.makeKeyAndOrderFront(nil)
-        chatBar = bar
-    }
-
-    /// Repositions an existing chat bar to the screen containing the mouse cursor
-    private func repositionChatBarToMouseScreen(_ bar: ChatBarPanel) {
-        guard let screen = NSScreen.screenAtMouseLocation() else { return }
-        let origin = screen.bottomCenterPoint(for: bar.frame.size, dockOffset: Constants.dockOffset)
-        bar.setFrameOrigin(origin)
-    }
-
-    func hideChatBar() {
-        chatBar?.orderOut(nil)
-    }
-
-    func closeMainWindow() {
-        // Find and hide the main window
-        for window in NSApp.windows {
-            if window.identifier?.rawValue == Constants.mainWindowIdentifier || window.title == Constants.mainWindowTitle {
-                if !(window is NSPanel) {
-                    window.orderOut(nil)
-                }
-            }
-        }
-    }
-
-    func toggleChatBar() {
-        if let bar = chatBar, bar.isVisible {
-            hideChatBar()
+        
+        if window.isVisible {
+            // Window is visible, hide it
+            window.orderOut(nil)
         } else {
-            showChatBar()
+            // Window is hidden, show it
+            openMainWindow()
         }
-    }
-
-    func expandToMainWindow() {
-        // Capture the screen where the chat bar is located before hiding it
-        let targetScreen = chatBar.flatMap { bar -> NSScreen? in
-            let center = NSPoint(x: bar.frame.midX, y: bar.frame.midY)
-            return NSScreen.screen(containing: center)
-        } ?? NSScreen.main
-
-        hideChatBar()
-        openMainWindow(on: targetScreen)
     }
 
     func openMainWindow(on targetScreen: NSScreen? = nil) {
-        // Hide chat bar first - WebView can only be in one view hierarchy
-        hideChatBar()
-
         let hideDockIcon = UserDefaults.standard.bool(forKey: UserDefaultsKeys.hideDockIcon.rawValue)
         if !hideDockIcon {
             NSApp.setActivationPolicy(.regular)
@@ -132,7 +71,7 @@ class AppCoordinator {
         let mainWindow = findMainWindow()
 
         if let window = mainWindow {
-            // Window exists - show it (works for suppressed windows too)
+            // Window exists - show it
             if let screen = targetScreen {
                 centerWindow(window, on: screen)
             }
@@ -140,6 +79,8 @@ class AppCoordinator {
             // Apply always on top setting
             let alwaysOnTop = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alwaysOnTop.rawValue)
             setAlwaysOnTop(alwaysOnTop)
+            // Focus the input field
+            focusGeminiInput()
         } else if let openWindowAction = openWindowAction {
             // Window doesn't exist yet - use SwiftUI openWindow to create it
             openWindowAction("main")
@@ -151,10 +92,30 @@ class AppCoordinator {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 let alwaysOnTop = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alwaysOnTop.rawValue)
                 self?.setAlwaysOnTop(alwaysOnTop)
+                // Focus the input field after window is ready
+                self?.focusGeminiInput()
             }
         }
 
         NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    /// Focuses the Gemini chat input field
+    func focusGeminiInput() {
+        let focusScript = """
+            (function() {
+                const input = document.querySelector('rich-textarea[aria-label="Enter a prompt here"]') ||
+                              document.querySelector('[contenteditable="true"]') ||
+                              document.querySelector('textarea');
+                if (input) {
+                    input.focus();
+                    return true;
+                }
+                return false;
+            })();
+            """
+        
+        webViewModel.wkWebView.evaluateJavaScript(focusScript, completionHandler: nil)
     }
 
     /// Finds the main window by identifier or title
