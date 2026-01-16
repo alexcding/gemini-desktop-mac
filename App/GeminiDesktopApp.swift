@@ -41,6 +41,13 @@ struct GeminiDesktopApp: App {
                 .disabled(!coordinator.canGoBack)
 
                 Button {
+                    coordinator.newChat()
+                } label: {
+                    Label("New Chat", systemImage: "square.and.pencil")
+                }
+                .keyboardShortcut("n", modifiers: .command)
+
+                Button {
                     coordinator.goForward()
                 } label: {
                     Label("Forward", systemImage: "chevron.right")
