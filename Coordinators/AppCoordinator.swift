@@ -35,6 +35,7 @@ class AppCoordinator {
     func goBack() { webViewModel.goBack() }
     func goForward() { webViewModel.goForward() }
     func goHome() { webViewModel.loadHome() }
+    func newChat() { webViewModel.loadHome() }
     func reload() { webViewModel.reload() }
 
     // MARK: - Zoom
