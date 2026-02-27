@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage(UserDefaultsKeys.pageZoom.rawValue) private var pageZoom: Double = Constants.defaultPageZoom
     @AppStorage(UserDefaultsKeys.hideWindowAtLaunch.rawValue) private var hideWindowAtLaunch: Bool = false
     @AppStorage(UserDefaultsKeys.hideDockIcon.rawValue) private var hideDockIcon: Bool = false
+    @AppStorage(UserDefaultsKeys.appTheme.rawValue) private var appTheme: String = AppTheme.system.rawValue
 
     @State private var showingResetAlert = false
     @State private var isClearing = false
@@ -36,6 +37,21 @@ struct SettingsView: View {
                 }
             }
             Section("Appearance") {
+                HStack {
+                    Text("Theme:")
+                    Spacer()
+                    Picker("", selection: $appTheme) {
+                        ForEach(AppTheme.allCases, id: \.rawValue) { theme in
+                            Text(theme.displayName).tag(theme.rawValue)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 200)
+                    .onChange(of: appTheme) { _, newValue in
+                        (AppTheme(rawValue: newValue) ?? .system).apply()
+                    }
+                }
                 HStack {
                     Text("Text Size: \(Int((pageZoom * 100).rounded()))%")
                     Spacer()
