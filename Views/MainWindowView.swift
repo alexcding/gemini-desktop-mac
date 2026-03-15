@@ -17,15 +17,15 @@ struct MainWindowView: View {
     var body: some View {
         GeminiWebView(webView: coordinator.webViewModel.wkWebView)
             .background(WindowAccessor { window in
-                updateWindowAppearance(window)
+                setupWindowAppearance(window)
             })
             .onAppear {
                 coordinator.openWindowAction = { id in
                     openWindow(id: id)
                 }
             }
-            .onChange(of: useCustomToolbarColor) { _, _ in updateAllWindows() }
-            .onChange(of: toolbarColorHex) { _, _ in updateAllWindows() }
+            .onChange(of: useCustomToolbarColor) { _, _ in applyColorToAllWindows() }
+            .onChange(of: toolbarColorHex) { _, _ in applyColorToAllWindows() }
             .toolbar {
                 if coordinator.canGoBack {
                     ToolbarItem(placement: .navigation) {
@@ -53,60 +53,51 @@ struct MainWindowView: View {
             }
     }
 
-    private func updateWindowAppearance(_ window: NSWindow) {
+    private var mainWindows: [NSWindow] {
+        NSApp.windows.filter {
+            ($0.identifier?.rawValue == AppCoordinator.Constants.mainWindowIdentifier ||
+             $0.title == AppCoordinator.Constants.mainWindowTitle) && !($0 is NSPanel)
+        }
+    }
+
+    private func setupWindowAppearance(_ window: NSWindow) {
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.collectionBehavior.insert(.fullScreenPrimary)
+        applyColor(to: window)
+    }
+
+    private func applyColor(to window: NSWindow) {
         if useCustomToolbarColor, let color = Color(toolbarColorHex) {
             window.backgroundColor = NSColor(color)
         } else {
-            // Revert to default
             window.backgroundColor = GeminiDesktopApp.Constants.toolbarColor
-        }
-        
-        // This ensures the background color is used for the title bar/toolbar area
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
-        
-        // Ensure the green traffic light enters native Full Screen mode
-        if !window.collectionBehavior.contains(.fullScreenPrimary) {
-            window.collectionBehavior.insert(.fullScreenPrimary)
         }
     }
 
-    private func updateAllWindows() {
-        for window in NSApp.windows {
-            if (window.identifier?.rawValue == AppCoordinator.Constants.mainWindowIdentifier || window.title == AppCoordinator.Constants.mainWindowTitle) && !(window is NSPanel) {
-                updateWindowAppearance(window)
-            }
-        }
+    private func applyColorToAllWindows() {
+        mainWindows.forEach { applyColor(to: $0) }
     }
 
     private func minimizeToPrompt() {
-        // Close main window and show chat bar
-        if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == AppCoordinator.Constants.mainWindowIdentifier || $0.title == AppCoordinator.Constants.mainWindowTitle }) {
-            if !(window is NSPanel) {
-                window.orderOut(nil)
-            }
-        }
+        mainWindows.first?.orderOut(nil)
         coordinator.showChatBar()
     }
 }
 
-// Helper to access NSWindow from SwiftUI
+// Helper to access NSWindow from SwiftUI for one-time setup
 struct WindowAccessor: NSViewRepresentable {
-    var onWindowReceived: (NSWindow) -> Void
+    var onWindowAvailable: (NSWindow) -> Void
 
     func makeNSView(context: Context) -> NSView {
         let nsView = NSView()
         DispatchQueue.main.async {
             if let window = nsView.window {
-                onWindowReceived(window)
+                onWindowAvailable(window)
             }
         }
         return nsView
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
-        if let window = nsView.window {
-            onWindowReceived(window)
-        }
-    }
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }

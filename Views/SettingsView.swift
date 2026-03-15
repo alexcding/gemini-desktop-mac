@@ -63,7 +63,7 @@ struct SettingsView: View {
                         ))
                         Spacer()
                         Button("Reset") {
-                            toolbarColorHex = "#34A853"
+                            useCustomToolbarColor = false
                         }
                         .buttonStyle(.borderless)
                         .foregroundStyle(.secondary)
