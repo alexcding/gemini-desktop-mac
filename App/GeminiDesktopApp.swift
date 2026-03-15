@@ -35,6 +35,7 @@ struct GeminiDesktopApp: App {
         }
         .handlesExternalEvents(matching: [Constants.mainWindowID])
         .defaultSize(width: Constants.mainWindowDefaultWidth, height: Constants.mainWindowDefaultHeight)
+        .defaultWindowPlacement { _, _ in WindowPlacement(.center) }
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
             CommandGroup(replacing: .newItem) {
@@ -120,7 +121,8 @@ struct GeminiDesktopApp: App {
                     if hideDockIcon || hideWindowAtLaunch {
                         NSApp.setActivationPolicy(.accessory)
                         if hideWindowAtLaunch {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + Constants.hideWindowDelay) {
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .seconds(Constants.hideWindowDelay))
                                 for window in NSApp.windows {
                                     if window.identifier?.rawValue == Constants.mainWindowID || window.title == AppCoordinator.Constants.mainWindowTitle {
                                         window.orderOut(nil)

@@ -97,21 +97,19 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .alert("Reset Website Data?", isPresented: $showingResetAlert) {
             Button("Cancel", role: .cancel) { }
-            Button("Reset", role: .destructive) { clearWebsiteData() }
+            Button("Reset", role: .destructive) { Task { await clearWebsiteData() } }
         } message: {
             Text("This will clear all cookies, cache, and login sessions. You will need to sign in to Gemini again.")
         }
     }
 
-    private func clearWebsiteData() {
+    private func clearWebsiteData() async {
         isClearing = true
         let dataStore = WKWebsiteDataStore.default()
         let types = WKWebsiteDataStore.allWebsiteDataTypes()
-        dataStore.fetchDataRecords(ofTypes: types) { records in
-            dataStore.removeData(ofTypes: types, for: records) {
-                DispatchQueue.main.async { isClearing = false }
-            }
-        }
+        let records = await dataStore.dataRecords(ofTypes: types)
+        await dataStore.removeData(ofTypes: types, for: records)
+        isClearing = false
     }
 }
 

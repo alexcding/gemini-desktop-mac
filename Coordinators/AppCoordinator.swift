@@ -59,7 +59,7 @@ class AppCoordinator {
             }
         )
         let hostingView = NSHostingView(rootView: contentView)
-        let bar = ChatBarPanel(contentView: hostingView)
+        let bar = ChatBarPanel(contentView: hostingView, webView: webViewModel.wkWebView)
 
         // Position at bottom center of the screen where mouse is located
         if let screen = NSScreen.screenAtMouseLocation() {
@@ -133,11 +133,8 @@ class AppCoordinator {
             window.makeKeyAndOrderFront(nil)
         } else if let openWindowAction = openWindowAction {
             // Window doesn't exist yet - use SwiftUI openWindow to create it
+            // defaultWindowPlacement handles initial positioning
             openWindowAction("main")
-            // Position newly created window with retry mechanism
-            if let screen = targetScreen {
-                centerNewlyCreatedWindow(on: screen)
-            }
         }
 
         NSApp.activate(ignoringOtherApps: true)
@@ -156,22 +153,6 @@ class AppCoordinator {
         window.setFrameOrigin(origin)
     }
 
-    /// Centers a newly created window on the target screen with retry mechanism
-    private func centerNewlyCreatedWindow(on screen: NSScreen, attempt: Int = 1) {
-        let maxAttempts = 5
-        let retryDelay = 0.05 // 50ms between attempts
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + retryDelay) { [weak self] in
-            guard let self = self else { return }
-
-            if let window = self.findMainWindow() {
-                self.centerWindow(window, on: screen)
-            } else if attempt < maxAttempts {
-                // Window not found yet, retry
-                self.centerNewlyCreatedWindow(on: screen, attempt: attempt + 1)
-            }
-        }
-    }
 }
 
 

@@ -13,9 +13,13 @@ enum UserScripts {
     /// Message handler name for console log bridging
     static let consoleLogHandler = "consoleLog"
 
+    /// Message handler name for conversation started notification
+    static let conversationStartedHandler = "conversationStarted"
+
     /// Creates all user scripts to be injected into the WebView
     static func createAllScripts() -> [WKUserScript] {
         var scripts: [WKUserScript] = [
+            createConversationObserverScript(),
             createIMEFixScript()
         ]
 
@@ -32,6 +36,15 @@ enum UserScripts {
             source: consoleLogBridgeSource,
             injectionTime: .atDocumentStart,
             forMainFrameOnly: false
+        )
+    }
+
+    /// Creates a script that observes for conversation start and notifies Swift
+    private static func createConversationObserverScript() -> WKUserScript {
+        WKUserScript(
+            source: conversationObserverSource,
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: true
         )
     }
 
@@ -266,6 +279,32 @@ enum UserScripts {
                 subtree: true
             });
         }
+    })();
+    """
+
+    /// JavaScript to observe when a conversation starts and notify Swift
+    private static let conversationObserverSource = """
+    (function() {
+        const handler = '\(conversationStartedHandler)';
+        const targetSelector = 'infinite-scroller[data-test-id="chat-history-container"]';
+        let notified = false;
+
+        function checkAndNotify() {
+            if (notified) return;
+            const scroller = document.querySelector(targetSelector);
+            if (!scroller) return;
+            const hasContent = scroller.querySelector('response-container') !== null
+                            || scroller.querySelector('[aria-label="Good response"]') !== null
+                            || scroller.querySelector('[aria-label="Bad response"]') !== null;
+            if (hasContent) {
+                notified = true;
+                window.webkit.messageHandlers[handler].postMessage(true);
+            }
+        }
+
+        const observer = new MutationObserver(checkAndNotify);
+        observer.observe(document.body, { childList: true, subtree: true });
+        checkAndNotify();
     })();
     """
 }
