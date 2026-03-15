@@ -9,6 +9,8 @@ struct SettingsView: View {
     @AppStorage(UserDefaultsKeys.hideWindowAtLaunch.rawValue) private var hideWindowAtLaunch: Bool = false
     @AppStorage(UserDefaultsKeys.hideDockIcon.rawValue) private var hideDockIcon: Bool = false
     @AppStorage(UserDefaultsKeys.appTheme.rawValue) private var appTheme: String = AppTheme.system.rawValue
+    @AppStorage(UserDefaultsKeys.useCustomToolbarColor.rawValue) private var useCustomToolbarColor: Bool = false
+    @AppStorage(UserDefaultsKeys.toolbarColorHex.rawValue) private var toolbarColorHex: String = "#34A853"
 
     @State private var showingResetAlert = false
     @State private var isClearing = false
@@ -50,6 +52,21 @@ struct SettingsView: View {
                     .frame(width: 200)
                     .onChange(of: appTheme) { _, newValue in
                         (AppTheme(rawValue: newValue) ?? .system).apply()
+                    }
+                }
+                Toggle("Use Custom Toolbar Color", isOn: $useCustomToolbarColor)
+                if useCustomToolbarColor {
+                    HStack {
+                        ColorPicker("Toolbar Color", selection: Binding(
+                            get: { Color(toolbarColorHex) ?? .blue },
+                            set: { if let hex = $0.toHex() { toolbarColorHex = hex } }
+                        ))
+                        Spacer()
+                        Button("Reset") {
+                            toolbarColorHex = "#34A853"
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.secondary)
                     }
                 }
                 HStack {

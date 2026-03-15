@@ -22,12 +22,17 @@ struct GeminiDesktopApp: App {
     @State var coordinator = AppCoordinator()
     @Environment(\.openWindow) private var openWindow
 
+    @AppStorage(UserDefaultsKeys.useCustomToolbarColor.rawValue) private var useCustomToolbarColor: Bool = false
+    @AppStorage(UserDefaultsKeys.toolbarColorHex.rawValue) private var toolbarColorHex: String = "#34A853"
+
     var body: some Scene {
-        Window(AppCoordinator.Constants.mainWindowTitle, id: Constants.mainWindowID) {
+        WindowGroup(AppCoordinator.Constants.mainWindowTitle, id: Constants.mainWindowID) {
             MainWindowView(coordinator: $coordinator)
-                .toolbarBackground(Color(nsColor: Constants.toolbarColor), for: .windowToolbar)
+                .toolbarBackground(useCustomToolbarColor ? (Color(toolbarColorHex) ?? .clear) : Color(nsColor: Constants.toolbarColor), for: .windowToolbar)
+                .toolbarBackground(.visible, for: .windowToolbar)
                 .frame(minWidth: Constants.mainWindowMinWidth, minHeight: Constants.mainWindowMinHeight)
         }
+        .handlesExternalEvents(matching: [Constants.mainWindowID])
         .defaultSize(width: Constants.mainWindowDefaultWidth, height: Constants.mainWindowDefaultHeight)
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
@@ -158,9 +163,11 @@ extension GeminiDesktopApp {
         // Appearance
         static let toolbarColor: NSColor = NSColor(name: nil) { appearance in
             if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                return NSColor(red: 43.0/255.0, green: 43.0/255.0, blue: 43.0/255.0, alpha: 1.0)
+                // Dark Mode: Green 200 (#81C995)
+                return NSColor(red: 129.0/255.0, green: 201.0/255.0, blue: 149.0/255.0, alpha: 1.0)
             } else {
-                return NSColor(red: 238.0/255.0, green: 241.0/255.0, blue: 247.0/255.0, alpha: 1.0)
+                // Light Mode: Green 500 (#34A853)
+                return NSColor(red: 52.0/255.0, green: 168.0/255.0, blue: 83.0/255.0, alpha: 1.0)
             }
         }
         static let menuBarIcon = "sparkle"
