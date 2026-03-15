@@ -37,6 +37,13 @@ class AppCoordinator {
     func zoomOut() { webViewModel.zoomOut() }
     func resetZoom() { webViewModel.resetZoom() }
 
+    // MARK: - Window Management
+
+    func updateActivationPolicy() {
+        let hideDock = UserDefaults.standard.bool(forKey: UserDefaultsKeys.hideDockIcon.rawValue)
+        NSApp.setActivationPolicy(hideDock ? .accessory : .regular)
+    }
+
     // MARK: - Chat Bar
 
     func showChatBar() {
@@ -59,7 +66,13 @@ class AppCoordinator {
             }
         )
         let hostingView = NSHostingView(rootView: contentView)
-        let bar = ChatBarPanel(contentView: hostingView, webView: webViewModel.wkWebView)
+        let bar = ChatBarPanel(
+            contentView: hostingView,
+            webView: webViewModel.wkWebView,
+            onOpenNewChat: { [weak self] in
+                self?.webViewModel.openNewChat()
+            }
+        )
 
         // Position at bottom center of the screen where mouse is located
         if let screen = NSScreen.screenAtMouseLocation() {
@@ -141,7 +154,7 @@ class AppCoordinator {
     }
 
     /// Finds the main window by identifier or title
-    private func findMainWindow() -> NSWindow? {
+    func findMainWindow() -> NSWindow? {
         NSApp.windows.first {
             $0.identifier?.rawValue == Constants.mainWindowIdentifier || $0.title == Constants.mainWindowTitle
         }

@@ -35,6 +35,7 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
     private var isExpanded = false
     private var pollingTimer: (any Sendable)?
     let webView: WKWebView
+    private let onOpenNewChat: () -> Void
 
     // Returns true if in a conversation (not on start page)
     private let checkConversationScript = """
@@ -61,15 +62,19 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
         })();
         """
 
-    init(contentView: NSView, webView: WKWebView) {
+    init(contentView: NSView, webView: WKWebView, onOpenNewChat: @escaping () -> Void) {
         self.webView = webView
-        let width = UserDefaults.standard.double(forKey: UserDefaultsKeys.panelWidth.rawValue)
-        let height = UserDefaults.standard.double(forKey: UserDefaultsKeys.panelHeight.rawValue)
-        let initWidth = width > 0 ? width : Constants.defaultWidth
-        let initHeight = height > 0 ? height : Constants.defaultHeight
+        self.onOpenNewChat = onOpenNewChat
+        let savedWidth = UserDefaults.standard.double(forKey: UserDefaultsKeys.panelWidth.rawValue)
+        let savedHeight = UserDefaults.standard.double(forKey: UserDefaultsKeys.panelHeight.rawValue)
 
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: initWidth, height: initHeight),
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: savedWidth > 0 ? savedWidth : Constants.defaultWidth,
+                height: savedHeight > 0 ? savedHeight : Constants.defaultHeight
+            ),
             styleMask: [
                 .nonactivatingPanel,
                 .resizable,
@@ -240,36 +245,13 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
            !event.modifierFlags.contains(.shift) &&
            !event.modifierFlags.contains(.option) &&
            event.charactersIgnoringModifiers == "n" {
-            openNewChat()
+            onOpenNewChat()
+            resetToInitialSize()
             return true
         }
         return super.performKeyEquivalent(with: event)
     }
 
-    /// Triggers a new chat by emulating Shift+Cmd+O (Google's shortcut)
-    private func openNewChat() {
-        let script = """
-        (function() {
-            const event = new KeyboardEvent('keydown', {
-                key: 'O',
-                code: 'KeyO',
-                keyCode: 79,
-                which: 79,
-                shiftKey: true,
-                metaKey: true,
-                bubbles: true,
-                cancelable: true,
-                composed: true
-            });
-            document.activeElement.dispatchEvent(event);
-            document.dispatchEvent(event);
-        })();
-        """
-        webView.evaluateJavaScript(script) { [weak self] _, _ in
-            // Reset to initial size since we're starting a new chat
-            self?.resetToInitialSize()
-        }
-    }
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }

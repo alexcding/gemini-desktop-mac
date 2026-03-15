@@ -115,23 +115,18 @@ struct GeminiDesktopApp: App {
         } label: {
             Image(systemName: Constants.menuBarIcon)
                 .onAppear {
+                    coordinator.updateActivationPolicy()
                     let hideWindowAtLaunch = UserDefaults.standard.bool(forKey: UserDefaultsKeys.hideWindowAtLaunch.rawValue)
-                    let hideDockIcon = UserDefaults.standard.bool(forKey: UserDefaultsKeys.hideDockIcon.rawValue)
 
-                    if hideDockIcon || hideWindowAtLaunch {
-                        NSApp.setActivationPolicy(.accessory)
-                        if hideWindowAtLaunch {
-                            Task { @MainActor in
-                                try? await Task.sleep(for: .seconds(Constants.hideWindowDelay))
-                                for window in NSApp.windows {
-                                    if window.identifier?.rawValue == Constants.mainWindowID || window.title == AppCoordinator.Constants.mainWindowTitle {
-                                        window.orderOut(nil)
-                                    }
+                    if hideWindowAtLaunch {
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .seconds(Constants.hideWindowDelay))
+                            for window in NSApp.windows {
+                                if window.identifier?.rawValue == Constants.mainWindowID || window.title == AppCoordinator.Constants.mainWindowTitle {
+                                    window.orderOut(nil)
                                 }
                             }
                         }
-                    } else {
-                        NSApp.setActivationPolicy(.regular)
                     }
                 }
         }
@@ -139,8 +134,9 @@ struct GeminiDesktopApp: App {
     }
 
     init() {
-        // Apply saved theme on launch
+        // Apply saved theme and activation policy on launch
         AppTheme.current.apply()
+        coordinator.updateActivationPolicy()
 
         KeyboardShortcuts.onKeyDown(for: .bringToFront) { [self] in
             coordinator.toggleChatBar()

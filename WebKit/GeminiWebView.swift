@@ -54,7 +54,9 @@ struct GeminiWebView: NSViewRepresentable {
         }
 
         nonisolated func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String) async -> URL? {
-            let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
+            guard let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else {
+                return nil
+            }
             var destination = downloadsURL.appendingPathComponent(suggestedFilename)
 
             let fileManager = FileManager.default

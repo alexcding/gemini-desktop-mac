@@ -54,10 +54,7 @@ struct MainWindowView: View {
     }
 
     private var mainWindows: [NSWindow] {
-        NSApp.windows.filter {
-            ($0.identifier?.rawValue == AppCoordinator.Constants.mainWindowIdentifier ||
-             $0.title == AppCoordinator.Constants.mainWindowTitle) && !($0 is NSPanel)
-        }
+        coordinator.findMainWindow().map { [$0] } ?? []
     }
 
     private func setupWindowAppearance(_ window: NSWindow) {
