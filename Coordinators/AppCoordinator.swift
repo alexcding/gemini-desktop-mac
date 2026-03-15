@@ -9,10 +9,7 @@ import SwiftUI
 import AppKit
 import WebKit
 
-extension Notification.Name {
-    static let openMainWindow = Notification.Name("openMainWindow")
-}
-
+@MainActor
 @Observable
 class AppCoordinator {
     private var chatBar: ChatBarPanel?
@@ -24,10 +21,6 @@ class AppCoordinator {
     var canGoForward: Bool { webViewModel.canGoForward }
 
     init() {
-        // Observe notifications for window opening
-        NotificationCenter.default.addObserver(forName: .openMainWindow, object: nil, queue: .main) { [weak self] _ in
-            self?.openMainWindow()
-        }
     }
 
     // MARK: - Navigation

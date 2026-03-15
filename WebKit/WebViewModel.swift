@@ -9,6 +9,7 @@ import WebKit
 import Combine
 
 /// Handles console.log messages from JavaScript
+@MainActor
 class ConsoleLogHandler: NSObject, WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         if let body = message.body as? String {
@@ -18,6 +19,7 @@ class ConsoleLogHandler: NSObject, WKScriptMessageHandler {
 }
 
 /// Observable wrapper around WKWebView with Gemini-specific functionality
+@MainActor
 @Observable
 class WebViewModel {
 
@@ -148,21 +150,21 @@ class WebViewModel {
 
     private func setupObservers() {
         backObserver = wkWebView.observe(\.canGoBack, options: [.new, .initial]) { [weak self] webView, _ in
-            DispatchQueue.main.async {
+            Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 self.canGoBack = !self.isAtHome && webView.canGoBack
             }
         }
 
         forwardObserver = wkWebView.observe(\.canGoForward, options: [.new, .initial]) { [weak self] webView, _ in
-            DispatchQueue.main.async {
+            Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 self.canGoForward = webView.canGoForward
             }
         }
 
         urlObserver = wkWebView.observe(\.url, options: .new) { [weak self] webView, _ in
-            DispatchQueue.main.async {
+            Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 guard let currentURL = webView.url else { return }
 

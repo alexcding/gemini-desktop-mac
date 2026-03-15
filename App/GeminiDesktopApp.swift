@@ -31,6 +31,7 @@ struct GeminiDesktopApp: App {
                 .toolbarBackground(useCustomToolbarColor ? (Color(toolbarColorHex) ?? .clear) : Color(nsColor: Constants.toolbarColor), for: .windowToolbar)
                 .toolbarBackground(.visible, for: .windowToolbar)
                 .frame(minWidth: Constants.mainWindowMinWidth, minHeight: Constants.mainWindowMinHeight)
+                .onAppear { appDelegate.coordinator = coordinator }
         }
         .handlesExternalEvents(matching: [Constants.mainWindowID])
         .defaultSize(width: Constants.mainWindowDefaultWidth, height: Constants.mainWindowDefaultHeight)

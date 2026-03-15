@@ -18,6 +18,8 @@ enum UserDefaultsKeys: String {
     case appTheme
     case useCustomToolbarColor
     case toolbarColorHex
+    case promptsDirectoryBookmark
+    case artifactsDirectoryBookmark
 }
 
 enum AppTheme: String, CaseIterable {
@@ -33,6 +35,7 @@ enum AppTheme: String, CaseIterable {
         }
     }
 
+    @MainActor
     func apply() {
         switch self {
         case .system:

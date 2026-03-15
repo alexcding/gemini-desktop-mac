@@ -33,7 +33,7 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
     }
 
     private var isExpanded = false
-    private var pollingTimer: Timer?
+    private var pollingTimer: (any Sendable)?
     private weak var webView: WKWebView?
 
     // Returns true if in a conversation (not on start page)
@@ -118,7 +118,7 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
         setupClickOutsideMonitor()
     }
 
-    private var clickOutsideMonitor: Any?
+    private var clickOutsideMonitor: (any Sendable)?
 
     private func setupClickOutsideMonitor() {
         clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
@@ -165,7 +165,9 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
     private func expandToNormalSize() {
         guard !isExpanded else { return }
         isExpanded = true
-        pollingTimer?.invalidate()
+        if let timer = pollingTimer as? Timer {
+            timer.invalidate()
+        }
 
         let currentFrame = self.frame
 
@@ -194,7 +196,9 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
 
     func resetToInitialSize() {
         isExpanded = false
-        pollingTimer?.invalidate()
+        if let timer = pollingTimer as? Timer {
+            timer.invalidate()
+        }
 
         let currentFrame = frame
 
@@ -240,9 +244,11 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
     }
 
     deinit {
-        pollingTimer?.invalidate()
+        if let timer = pollingTimer as? Timer {
+            timer.invalidate()
+        }
         if let monitor = clickOutsideMonitor {
-            NSEvent.removeMonitor(monitor)
+            NSEvent.removeMonitor(monitor as! NSObject)
         }
     }
 
