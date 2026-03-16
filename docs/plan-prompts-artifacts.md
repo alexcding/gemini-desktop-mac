@@ -119,7 +119,23 @@ final class PromptDirectoryWatcher: @unchecked Sendable {
 
 FSEvents flags: `kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes | kFSEventStreamCreateFlagNoDefer`. Latency: 0.5s.
 
-Use `Unmanaged.passRetained(self)` as context; `fromOpaque` in callback. Balance with `Unmanaged.passUnretained(self).release()` in `stop()`.
+Use `Unmanaged.passRetained(self)` as context; `fromOpaque` in callback. In `stop()`, balance with `Unmanaged.fromOpaque(info).release()` — **never** `passUnretained(self).release()`, which over-releases the object and crashes.
+
+**Debounce:** `PromptDirectoryWatcher` must debounce its `onChange` callback. Bulk operations (e.g. unzipping 50 prompt files) fire dozens of FSEvents in milliseconds. Without debouncing, each event triggers `PromptLibrary.reload()` and `updateAppShortcutsParameters()`, thrashing the disk and hammering the Spotlight indexer.
+
+Implementation: hold a `DispatchWorkItem?` in the watcher. On each FSEvent callback, cancel the pending item and schedule a new one with a 0.5s delay. Only the final item fires `onChange`.
+
+```swift
+private var debounceItem: DispatchWorkItem?
+
+// Inside the FSEvent callback:
+debounceItem?.cancel()
+let item = DispatchWorkItem { [weak self] in
+    Task { @MainActor in self?.onChange?() }
+}
+debounceItem = item
+DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: item)
+```
 
 ### `Prompts/PromptLibrary.swift`
 `@MainActor @Observable final class PromptLibrary`
@@ -190,7 +206,7 @@ Escapes `\`, `'`, `\n`, `\r`, `\0` for safe embedding in a JS single-quoted stri
 - Throws `AppIntentError.noResponseAvailable` if element not found or result empty
 
 **`captureLastResponse(suggestedFilename:)`**:
-- If `suggestedFilename` is nil or empty, generate a timestamp-based default: `"Gemini-\(ISO8601DateFormatter().string(from: Date()).prefix(15)).md"` → e.g. `Gemini-20260316T1813.md`
+- If `suggestedFilename` is nil or empty, generate a timestamp-based default using `DateFormatter` with `dateFormat = "yyyy-MM-dd-HHmmss"` → e.g. `Gemini-2026-03-16-184635.md`. Do **not** use `ISO8601DateFormatter().string(from:).prefix(15)` — that yields `2026-03-16T18:4`, chopping mid-minute and creating collisions within the same 10-minute window.
 - This eliminates the vast majority of collisions and organizes the artifacts dir chronologically
 - `UserScripts.createCaptureScript(lastResponseSelector:)` → `evaluateJavaScript`
 - On result: call `saveArtifact(markdown: filename:)`
@@ -427,7 +443,7 @@ Cache note: `library.allFiles` is already in memory (populated by `PromptLibrary
 struct InjectPromptIntent: AppIntent {
     static var title: LocalizedStringResource = "Inject Prompt into Gemini"
     static var description = IntentDescription("Brings Gemini Desktop to the foreground and injects a saved prompt into the input field.")
-    static var openAppWhenRun: Bool = true   // must be foreground for WebView access
+    static var openAppWhenRun: Bool = true   // MUST remain true — macOS App Nap suspends WKWebView JS execution when the window is hidden/occluded; forcing foreground guarantees evaluateJavaScript runs
 
     @Parameter(title: "Prompt") var prompt: PromptAppEntity
     @Parameter(title: "Additional Text", default: "") var additionalText: String
@@ -494,7 +510,7 @@ struct CaptureLastArtifactIntent: AppIntent {
     static var title: LocalizedStringResource = "Capture Last Gemini Response"
     static var description = IntentDescription(
         "Returns the last Gemini response as Markdown. Use in Shortcuts to pipe into Obsidian, Git, or any file.")
-    static var openAppWhenRun: Bool = true
+    static var openAppWhenRun: Bool = true   // MUST remain true — see InjectPromptIntent note on App Nap
 
     @Dependency var coordinator: AppCoordinator
 
@@ -514,6 +530,8 @@ Register dependencies so `@Dependency` resolution works:
 AppDependencyManager.shared.add(dependency: coordinator)
 AppDependencyManager.shared.add(dependency: coordinator.promptLibrary)
 ```
+
+> **OS requirement:** `AppDependencyManager` requires macOS 14+. This project targets macOS 15.0 (`MACOSX_DEPLOYMENT_TARGET = 15.0`), so this is safe. If the deployment target is ever lowered to macOS 13, replace `@Dependency` + `AppDependencyManager` with a custom singleton or static accessor pattern.
 
 Call `updateAppShortcutsParameters()` when the library reloads (in `PromptLibrary.reload()`) to keep Spotlight index current:
 ```swift
