@@ -20,6 +20,7 @@ enum UserDefaultsKeys: String {
     case toolbarColorHex
     case promptsDirectoryBookmark
     case artifactsDirectoryBookmark
+    case promptInjectionMode   // "copy" | "inject"
 }
 
 enum AppTheme: String, CaseIterable {

@@ -1,0 +1,10 @@
+{
+  "conversationContainer": "infinite-scroller[data-test-id='chat-history-container']",
+  "responseContainer": "response-container",
+  "goodResponseButton": "[aria-label='Good response']",
+  "badResponseButton": "[aria-label='Bad response']",
+  "promptInput": "rich-textarea[aria-label='Enter a prompt here']",
+  "richTextareaSelector": "rich-textarea[aria-label='Enter a prompt here']",
+  "sendButtonSelector": "button[aria-label='Send message']",
+  "lastResponseSelector": "model-response:last-of-type"
+}
