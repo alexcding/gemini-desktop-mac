@@ -15,7 +15,13 @@ final class PromptDirectoryWatcher: @unchecked Sendable {
     func start(at path: String) {
         stop()
 
-        let streamContext = UnsafeMutableRawPointer(Unmanaged.passRetained(self).toOpaque())
+        var context = FSEventStreamContext(
+            version: 0,
+            info: Unmanaged.passRetained(self).toOpaque(),
+            retain: nil,
+            release: nil,
+            copyDescription: nil
+        )
         let paths = NSArray(object: path)
 
         let callback: FSEventStreamCallback = { stream, context, numEvents, eventPaths, eventFlags, eventIds in
@@ -26,7 +32,7 @@ final class PromptDirectoryWatcher: @unchecked Sendable {
         stream = FSEventStreamCreate(
             kCFAllocatorDefault,
             callback,
-            streamContext,
+            &context,
             paths as CFArray,
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
             0.5,
@@ -35,7 +41,7 @@ final class PromptDirectoryWatcher: @unchecked Sendable {
 
         guard let stream = stream else { return }
 
-        FSEventStreamScheduleWithRunLoop(stream, CFRunLoopGetMain(), CFRunLoopRunLoopMode.commonModes as CFString)
+        FSEventStreamScheduleWithRunLoop(stream, CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue)
         FSEventStreamStart(stream)
     }
 
@@ -61,7 +67,8 @@ final class PromptDirectoryWatcher: @unchecked Sendable {
         debounceItem?.cancel()
 
         let item = DispatchWorkItem { [weak self] in
-            Task { @MainActor in
+            guard let self = self else { return }
+            DispatchQueue.main.async { @MainActor [weak self] in
                 self?.onChange?()
             }
         }

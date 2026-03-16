@@ -59,6 +59,16 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		679ADA3B2F688B890019C65F /* Intents */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Intents;
+			sourceTree = "<group>";
+		};
+		679ADA412F688B890019C65F /* Prompts */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Prompts;
+			sourceTree = "<group>";
+		};
 		7452D4CF2EF08E5D00EDD8A4 /* WebKit */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = WebKit;
@@ -109,16 +119,16 @@
 			path = ChatBar;
 			sourceTree = "<group>";
 		};
-	84CBD8C02EED8FCC00F226E3 /* Prompts */ = {
-		isa = PBXFileSystemSynchronizedRootGroup;
-		path = Prompts;
-		sourceTree = "<group>";
-	};
-	84CBD8C12EED8FCC00F226E3 /* Intents */ = {
-		isa = PBXFileSystemSynchronizedRootGroup;
-		path = Intents;
-		sourceTree = "<group>";
-	};
+		84CBD8C02EED8FCC00F226E3 /* Prompts */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Prompts;
+			sourceTree = "<group>";
+		};
+		84CBD8C12EED8FCC00F226E3 /* Intents */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Intents;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -137,6 +147,8 @@
 		74CBD8A12EED8FCA00F226E3 = {
 			isa = PBXGroup;
 			children = (
+				679ADA3B2F688B890019C65F /* Intents */,
+				679ADA412F688B890019C65F /* Prompts */,
 				749D25D32EEE2C330054BA29 /* App */,
 				749D25D52EEE2C330054BA29 /* Coordinators */,
 				749D25E32EEE2C330054BA29 /* ChatBar */,
@@ -174,6 +186,8 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
+				679ADA3B2F688B890019C65F /* Intents */,
+				679ADA412F688B890019C65F /* Prompts */,
 				7452D4CF2EF08E5D00EDD8A4 /* WebKit */,
 				749D25E12EEE2C330054BA29 /* Views */,
 			);
