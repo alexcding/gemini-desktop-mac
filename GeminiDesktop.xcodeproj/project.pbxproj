@@ -109,6 +109,16 @@
 			path = ChatBar;
 			sourceTree = "<group>";
 		};
+	84CBD8C02EED8FCC00F226E3 /* Prompts */ = {
+		isa = PBXFileSystemSynchronizedRootGroup;
+		path = Prompts;
+		sourceTree = "<group>";
+	};
+	84CBD8C12EED8FCC00F226E3 /* Intents */ = {
+		isa = PBXFileSystemSynchronizedRootGroup;
+		path = Intents;
+		sourceTree = "<group>";
+	};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -134,6 +144,8 @@
 				749D25E12EEE2C330054BA29 /* Views */,
 				749D25DC2EEE2C330054BA29 /* Utils */,
 				749D25DA2EEE2C330054BA29 /* Resources */,
+				84CBD8C02EED8FCC00F226E3 /* Prompts */,
+				84CBD8C12EED8FCC00F226E3 /* Intents */,
 				74CBD8AB2EED8FCB00F226E3 /* Products */,
 			);
 			sourceTree = "<group>";

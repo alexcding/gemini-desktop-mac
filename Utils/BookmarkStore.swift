@@ -32,4 +32,21 @@ final class BookmarkStore {
         defer { url.stopAccessingSecurityScopedResource() }
         return try body(url)
     }
+
+    func resolveBookmark(
+        for key: UserDefaultsKeys,
+        _ body: @escaping (URL?) -> Void
+    ) {
+        let url = resolveBookmark(for: key)
+        if let url = url {
+            guard url.startAccessingSecurityScopedResource() else {
+                body(nil)
+                return
+            }
+            defer { url.stopAccessingSecurityScopedResource() }
+            body(url)
+        } else {
+            body(nil)
+        }
+    }
 }

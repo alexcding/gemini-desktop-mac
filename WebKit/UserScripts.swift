@@ -17,7 +17,7 @@ enum UserScripts {
     static let conversationStartedHandler = "conversationStarted"
 
     /// Creates all user scripts to be injected into the WebView
-    static func createAllScripts() -> [WKUserScript] {
+    nonisolated static func createAllScripts() -> [WKUserScript] {
         var scripts: [WKUserScript] = [
             createConversationObserverScript(),
             createIMEFixScript()
@@ -31,7 +31,7 @@ enum UserScripts {
     }
 
     /// Creates a script that bridges console.log to native Swift
-    private static func createConsoleLogBridgeScript() -> WKUserScript {
+    nonisolated private static func createConsoleLogBridgeScript() -> WKUserScript {
         WKUserScript(
             source: consoleLogBridgeSource,
             injectionTime: .atDocumentStart,
@@ -40,7 +40,7 @@ enum UserScripts {
     }
 
     /// Creates a script that observes for conversation start and notifies Swift
-    private static func createConversationObserverScript() -> WKUserScript {
+    nonisolated private static func createConversationObserverScript() -> WKUserScript {
         WKUserScript(
             source: conversationObserverSource,
             injectionTime: .atDocumentEnd,
@@ -50,7 +50,7 @@ enum UserScripts {
 
     /// Creates the IME fix script that resolves the double-enter issue
     /// when using input method editors (e.g., Chinese, Japanese, Korean input)
-    private static func createIMEFixScript() -> WKUserScript {
+    nonisolated private static func createIMEFixScript() -> WKUserScript {
         WKUserScript(
             source: imeFixSource,
             injectionTime: .atDocumentEnd,
@@ -307,4 +307,123 @@ enum UserScripts {
         checkAndNotify();
     })();
     """
+
+    // MARK: - Prompt Injection
+
+    nonisolated static func createInjectionScript(escapedText: String, richTextareaSelector: String) -> String {
+        """
+        (function() {
+            const textarea = document.querySelector('\(richTextareaSelector)');
+            if (!textarea) return false;
+
+            try {
+                const text = '\(escapedText)';
+                if (document.execCommand('insertText', false, text)) {
+                    return true;
+                }
+
+                // Fallback: use InputEvent
+                const dt = new DataTransfer();
+                dt.items.add(new File([text], 'paste', { type: 'text/plain' }));
+                const pasteEvent = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true });
+                textarea.dispatchEvent(pasteEvent);
+
+                const inputEvent = new InputEvent('input', { data: text, bubbles: true, inputType: 'insertText' });
+                textarea.dispatchEvent(inputEvent);
+                return true;
+            } catch (e) {
+                return false;
+            }
+        })();
+        """
+    }
+
+    // MARK: - Artifact Capture
+
+    nonisolated static func createCaptureScript(lastResponseSelector: String) -> String {
+        """
+        (function() {
+            // Check if still streaming
+            if (document.querySelector("button[aria-label='Stop response']")) {
+                return '__streaming__';
+            }
+
+            const responseEl = document.querySelector('\(lastResponseSelector)');
+            if (!responseEl) return '';
+
+            function domToMarkdown(node, depth = 0) {
+                let markdown = '';
+                const indent = '  '.repeat(depth);
+
+                if (node.nodeType === 3) {
+                    markdown = node.textContent.trim();
+                } else if (node.nodeType === 1) {
+                    const tag = node.tagName.toLowerCase();
+                    const text = Array.from(node.childNodes).map(child => domToMarkdown(child, depth)).join('').trim();
+
+                    switch (tag) {
+                    case 'h1': markdown = '# ' + text; break;
+                    case 'h2': markdown = '## ' + text; break;
+                    case 'h3': markdown = '### ' + text; break;
+                    case 'h4': markdown = '#### ' + text; break;
+                    case 'h5': markdown = '##### ' + text; break;
+                    case 'h6': markdown = '###### ' + text; break;
+                    case 'p': markdown = text + '\\n\\n'; break;
+                    case 'strong':
+                    case 'b': markdown = '**' + text + '**'; break;
+                    case 'em':
+                    case 'i': markdown = '_' + text + '_'; break;
+                    case 'code': markdown = '`' + text + '`'; break;
+                    case 'pre': {
+                        const codeEl = node.querySelector('code');
+                        const code = codeEl ? (codeEl.innerText || codeEl.textContent) : text;
+                        markdown = '```\\n' + code + '\\n```\\n';
+                        break;
+                    }
+                    case 'blockquote': markdown = '> ' + text.split('\\n').join('\\n> ') + '\\n'; break;
+                    case 'ul':
+                    case 'ol': {
+                        let items = [];
+                        node.querySelectorAll(':scope > li').forEach((li, idx) => {
+                            const prefix = tag === 'ol' ? (idx + 1) + '. ' : '- ';
+                            items.push(prefix + domToMarkdown(li, depth + 1).trim());
+                        });
+                        markdown = items.join('\\n') + '\\n';
+                        break;
+                    }
+                    case 'a': {
+                        const href = node.getAttribute('href') || '';
+                        markdown = '[' + text + '](' + href + ')';
+                        break;
+                    }
+                    case 'table': {
+                        const rows = node.querySelectorAll('tr');
+                        const table = [];
+                        rows.forEach((row, idx) => {
+                            const cells = Array.from(row.querySelectorAll('th, td')).map(cell =>
+                                domToMarkdown(cell, depth).trim()
+                            );
+                            table.push('| ' + cells.join(' | ') + ' |');
+                            if (idx === 0) {
+                                table.push('| ' + cells.map(() => '---').join(' | ') + ' |');
+                            }
+                        });
+                        markdown = table.join('\\n') + '\\n';
+                        break;
+                    }
+                    case 'br': markdown = '\\n'; break;
+                    default:
+                        Array.from(node.childNodes).forEach(child => {
+                            markdown += domToMarkdown(child, depth);
+                        });
+                    }
+                }
+
+                return markdown;
+            }
+
+            return domToMarkdown(responseEl).trim();
+        })();
+        """
+    }
 }

@@ -18,6 +18,21 @@ class ConsoleLogHandler: NSObject, WKScriptMessageHandler {
     }
 }
 
+/// Tracks navigation state for page readiness
+@MainActor
+class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
+    var onPageReady: (() -> Void)?
+    var onNavigationStart: (() -> Void)?
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        onPageReady?()
+    }
+
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        onNavigationStart?()
+    }
+}
+
 /// Observable wrapper around WKWebView with Gemini-specific functionality
 @MainActor
 @Observable
@@ -40,6 +55,7 @@ class WebViewModel {
     private(set) var canGoBack: Bool = false
     private(set) var canGoForward: Bool = false
     private(set) var isAtHome: Bool = true
+    private(set) var isPageReady: Bool = false
 
     // MARK: - Private Properties
 
@@ -47,11 +63,21 @@ class WebViewModel {
     private var forwardObserver: NSKeyValueObservation?
     private var urlObserver: NSKeyValueObservation?
     private let consoleLogHandler = ConsoleLogHandler()
+    private let navigationDelegate = WebViewNavigationDelegate()
 
     // MARK: - Initialization
 
     init() {
         self.wkWebView = Self.createWebView(consoleLogHandler: consoleLogHandler)
+        self.wkWebView.navigationDelegate = navigationDelegate
+
+        navigationDelegate.onPageReady = { [weak self] in
+            self?.isPageReady = true
+        }
+        navigationDelegate.onNavigationStart = { [weak self] in
+            self?.isPageReady = false
+        }
+
         setupObservers()
         loadHome()
     }

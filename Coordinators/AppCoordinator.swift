@@ -8,19 +8,25 @@
 import SwiftUI
 import AppKit
 import WebKit
+import Observation
 
 @MainActor
 @Observable
 class AppCoordinator {
     private var chatBar: ChatBarPanel?
     var webViewModel = WebViewModel()
+    let promptLibrary = PromptLibrary()
 
     var openWindowAction: ((String) -> Void)?
+    private(set) var isInjecting: Bool = false
+    private(set) var injectionBannerMessage: String? = nil
 
     var canGoBack: Bool { webViewModel.canGoBack }
     var canGoForward: Bool { webViewModel.canGoForward }
 
     init() {
+        promptLibrary.reload()
+        promptLibrary.startWatching()
     }
 
     // MARK: - Navigation
@@ -164,6 +170,144 @@ class AppCoordinator {
     private func centerWindow(_ window: NSWindow, on screen: NSScreen) {
         let origin = screen.centerPoint(for: window.frame.size)
         window.setFrameOrigin(origin)
+    }
+
+    // MARK: - Prompts & Artifacts
+
+    func copyPromptToClipboard(_ file: PromptFile) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(file.body, forType: .string)
+    }
+
+    func injectPrompt(_ file: PromptFile) {
+        Task {
+            guard !isInjecting else { return }
+            isInjecting = true
+            defer { isInjecting = false }
+
+            do {
+                try await waitForPageReady(timeout: 30)
+
+                var textToInject = file.body
+                if textToInject.count > 16_000 {
+                    textToInject = String(textToInject.prefix(16_000))
+                }
+
+                let escaped = escapeForJavaScript(textToInject)
+                let script = UserScripts.createInjectionScript(
+                    escapedText: escaped,
+                    richTextareaSelector: GeminiSelectors.shared.richTextareaSelector
+                )
+
+                webViewModel.wkWebView.evaluateJavaScript(script) { result, error in
+                    if error != nil {
+                        self.injectionBannerMessage = "Could not inject prompt into Gemini. Is it loaded?"
+                    }
+                }
+            } catch {
+                injectionBannerMessage = "Could not inject: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func captureLastResponse(suggestedFilename: String?) {
+        Task {
+            do {
+                let markdown = try await captureLastResponseAsString()
+                let filename = suggestedFilename?.isEmpty == false ? suggestedFilename! :
+                    defaultArtifactFilename()
+                saveArtifact(markdown: markdown, filename: filename)
+            } catch {
+                injectionBannerMessage = "Could not capture response: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func captureLastResponseAsString() async throws -> String {
+        try await waitForPageReady(timeout: 10)
+
+        let script = UserScripts.createCaptureScript(lastResponseSelector: GeminiSelectors.shared.lastResponseSelector)
+        let result: String = try await withCheckedThrowingContinuation { continuation in
+            webViewModel.wkWebView.evaluateJavaScript(script) { result, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else if let markdown = result as? String {
+                    if markdown == "__streaming__" {
+                        continuation.resume(throwing: AppIntentError.stillStreaming)
+                    } else if markdown.isEmpty {
+                        continuation.resume(throwing: AppIntentError.noResponseAvailable)
+                    } else {
+                        continuation.resume(returning: markdown)
+                    }
+                } else {
+                    continuation.resume(throwing: AppIntentError.noResponseAvailable)
+                }
+            }
+        }
+        return result
+    }
+
+    private func saveArtifact(markdown: String, filename: String) {
+        let bookmarkStore = BookmarkStore()
+        do {
+            _ = try bookmarkStore.withBookmarkedURL(for: .artifactsDirectoryBookmark) { dirURL in
+                var finalURL = dirURL.appendingPathComponent(filename, isDirectory: false)
+                var counter = 1
+
+                while FileManager.default.fileExists(atPath: finalURL.path) {
+                    let stem = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
+                    let ext = URL(fileURLWithPath: filename).pathExtension
+                    let newName = "\(stem)-\(counter).\(ext)"
+                    finalURL = dirURL.appendingPathComponent(newName, isDirectory: false)
+                    counter += 1
+                }
+
+                var content = markdown
+                if !markdown.hasPrefix("---") {
+                    let iso8601 = ISO8601DateFormatter().string(from: Date())
+                    let header = "---\ncaptured_at: \(iso8601)\nsource: gemini.google.com\n---\n\n"
+                    content = header + markdown
+                }
+
+                try content.write(to: finalURL, atomically: true, encoding: .utf8)
+            }
+        } catch {
+            injectionBannerMessage = "Failed to save artifact: \(error.localizedDescription)"
+            return
+        }
+
+        self.injectionBannerMessage = nil
+    }
+
+    func dismissInjectionBanner() {
+        injectionBannerMessage = nil
+    }
+
+    func waitForPageReady(timeout: TimeInterval) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while !webViewModel.isPageReady {
+            if Date() > deadline {
+                throw AppIntentError.notAuthenticated
+            }
+            try await Task.sleep(nanoseconds: 500_000_000)  // 0.5s
+        }
+    }
+
+    private func escapeForJavaScript(_ text: String) -> String {
+        var escaped = text
+        escaped = escaped.replacingOccurrences(of: "\\", with: "\\\\")
+        escaped = escaped.replacingOccurrences(of: "'", with: "\\'")
+        escaped = escaped.replacingOccurrences(of: "\n", with: "\\n")
+        escaped = escaped.replacingOccurrences(of: "\r", with: "\\r")
+        escaped = escaped.replacingOccurrences(of: "\0", with: "\\0")
+        return escaped
+    }
+
+    private func defaultArtifactFilename() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd-HHmmss"
+        return "Gemini-\(formatter.string(from: Date())).md"
     }
 
 }
