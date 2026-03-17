@@ -13,6 +13,14 @@ import Observation
 @MainActor
 @Observable
 class AppCoordinator {
+    enum CaptureProgress {
+        case started
+        case converting
+        case saving
+        case completed(filename: String)
+        case failed(error: String)
+    }
+
     private var chatBar: ChatBarPanel?
     var webViewModel = WebViewModel()
     let promptLibrary = PromptLibrary()
@@ -20,6 +28,7 @@ class AppCoordinator {
     var openWindowAction: ((String) -> Void)?
     private(set) var isInjecting: Bool = false
     private(set) var injectionBannerMessage: String? = nil
+    private(set) var captureProgress: CaptureProgress? = nil
 
     var canGoBack: Bool { webViewModel.canGoBack }
     var canGoForward: Bool { webViewModel.canGoForward }
@@ -212,13 +221,21 @@ class AppCoordinator {
 
     func captureLastResponse(suggestedFilename: String?) {
         Task {
+            captureProgress = .started
             do {
+                captureProgress = .converting
                 let markdown = try await captureLastResponseAsString()
+
+                captureProgress = .saving
                 let filename = suggestedFilename?.isEmpty == false ? suggestedFilename! :
                     defaultArtifactFilename()
-                saveArtifact(markdown: markdown, filename: filename)
+                await saveArtifact(markdown: markdown, filename: filename)
             } catch {
-                injectionBannerMessage = "Could not capture response: \(error.localizedDescription)"
+                captureProgress = .failed(error: error.localizedDescription)
+
+                // Auto-dismiss error state after 3 seconds
+                try? await Task.sleep(for: .seconds(3))
+                self.captureProgress = nil
             }
         }
     }
@@ -226,57 +243,90 @@ class AppCoordinator {
     func captureLastResponseAsString() async throws -> String {
         try await waitForPageReady(timeout: 10)
 
+        // Step 1: Extract raw HTML from the response element (<100ms, unblocks WebView)
         let script = UserScripts.createCaptureScript(lastResponseSelector: GeminiSelectors.shared.lastResponseSelector)
-        let result: String = try await withCheckedThrowingContinuation { continuation in
+        let htmlString: String = try await withCheckedThrowingContinuation { continuation in
             webViewModel.wkWebView.evaluateJavaScript(script) { result, error in
                 if let error = error {
                     continuation.resume(throwing: error)
-                } else if let markdown = result as? String {
-                    if markdown == "__streaming__" {
+                } else if let html = result as? String {
+                    if html == "__streaming__" {
                         continuation.resume(throwing: AppIntentError.stillStreaming)
-                    } else if markdown.isEmpty {
+                    } else if html.isEmpty {
                         continuation.resume(throwing: AppIntentError.noResponseAvailable)
                     } else {
-                        continuation.resume(returning: markdown)
+                        continuation.resume(returning: html)
                     }
                 } else {
                     continuation.resume(throwing: AppIntentError.noResponseAvailable)
                 }
             }
         }
-        return result
+
+        // Step 2: Convert HTML to Markdown in background (100-500ms, off main thread)
+        let markdown = await Task(priority: .userInitiated) {
+            HTMLToMarkdown.convert(htmlString)
+        }.value
+
+        return markdown
     }
 
-    func saveArtifact(markdown: String, filename: String) {
-        let bookmarkStore = BookmarkStore()
+    func saveArtifact(markdown: String, filename: String) async {
         do {
-            _ = try bookmarkStore.withBookmarkedURL(for: .artifactsDirectoryBookmark) { dirURL in
-                var finalURL = dirURL.appendingPathComponent(filename, isDirectory: false)
-                var counter = 1
+            let savedFilename = try await performFileIO(markdown: markdown, filename: filename)
+            captureProgress = .completed(filename: savedFilename)
 
-                while FileManager.default.fileExists(atPath: finalURL.path) {
+            // Auto-dismiss success state after 2 seconds
+            try await Task.sleep(for: .seconds(2))
+            self.captureProgress = nil
+        } catch {
+            captureProgress = .failed(error: error.localizedDescription)
+
+            // Auto-dismiss error state after 3 seconds
+            try? await Task.sleep(for: .seconds(3))
+            self.captureProgress = nil
+        }
+    }
+
+    nonisolated private func performFileIO(markdown: String, filename: String) async throws -> String {
+        return try await Task.detached(priority: .userInitiated) {
+            let bookmarkStore = BookmarkStore()
+
+            let finalURL = try bookmarkStore.withBookmarkedURL(for: .artifactsDirectoryBookmark) { dirURL in
+                var url = dirURL.appendingPathComponent(filename, isDirectory: false)
+                var counter = 1
+                let maxRetries = 100
+
+                while FileManager.default.fileExists(atPath: url.path) && counter < maxRetries {
                     let stem = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
-                    let ext = URL(fileURLWithPath: filename).pathExtension
+                    var ext = URL(fileURLWithPath: filename).pathExtension
+                    if ext.isEmpty {
+                        ext = "md"
+                    }
                     let newName = "\(stem)-\(counter).\(ext)"
-                    finalURL = dirURL.appendingPathComponent(newName, isDirectory: false)
+                    url = dirURL.appendingPathComponent(newName, isDirectory: false)
                     counter += 1
                 }
 
-                var content = markdown
-                if !markdown.hasPrefix("---") {
-                    let iso8601 = ISO8601DateFormatter().string(from: Date())
-                    let header = "---\ncaptured_at: \(iso8601)\nsource: gemini.google.com\n---\n\n"
-                    content = header + markdown
+                if counter >= maxRetries {
+                    throw AppIntentError.fileCollisionLimitExceeded
                 }
 
-                try content.write(to: finalURL, atomically: true, encoding: .utf8)
-            }
-        } catch {
-            injectionBannerMessage = "Failed to save artifact: \(error.localizedDescription)"
-            return
-        }
+                // Unconditionally prepend YAML header
+                let iso8601 = ISO8601DateFormatter().string(from: Date())
+                let header = "---\ncaptured_at: \(iso8601)\nsource: gemini.google.com\n---\n\n"
+                let content = header + markdown
 
-        self.injectionBannerMessage = nil
+                try content.write(to: url, atomically: true, encoding: .utf8)
+                return url
+            }
+
+            guard let url = finalURL else {
+                throw AppIntentError.directoryUnavailable
+            }
+
+            return url.lastPathComponent
+        }.value
     }
 
     func dismissInjectionBanner() {

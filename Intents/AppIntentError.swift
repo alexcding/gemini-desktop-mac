@@ -13,6 +13,7 @@ enum AppIntentError: LocalizedError {
     case stillStreaming
     case directoryUnavailable
     case promptNotFound
+    case fileCollisionLimitExceeded
 
     var errorDescription: String? {
         switch self {
@@ -30,6 +31,8 @@ enum AppIntentError: LocalizedError {
             return "The artifacts directory is not accessible."
         case .promptNotFound:
             return "The selected prompt was not found."
+        case .fileCollisionLimitExceeded:
+            return "Too many files with the same name exist. Please rename your artifacts or free up space."
         }
     }
 }

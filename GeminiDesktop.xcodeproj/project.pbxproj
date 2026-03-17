@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		676D3DB72F6886AC00005D4B /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = 676D3DB62F6886AC00005D4B /* Yams */; };
+		677D98A32F69236C00B3ACF9 /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = 677D98A22F69236C00B3ACF9 /* SwiftSoup */; };
 		74CBD8C02EED900000F226E3 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 74CBD8BF2EED900000F226E3 /* KeyboardShortcuts */; };
 /* End PBXBuildFile section */
 
@@ -43,6 +44,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				BookmarkStore.swift,
+				HTMLToMarkdown.swift,
 				"NSScreen+Extensions.swift",
 				UserDefaultsKeys.swift,
 			);
@@ -138,6 +140,7 @@
 			files = (
 				676D3DB72F6886AC00005D4B /* Yams in Frameworks */,
 				74CBD8C02EED900000F226E3 /* KeyboardShortcuts in Frameworks */,
+				677D98A32F69236C00B3ACF9 /* SwiftSoup in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -195,6 +198,7 @@
 			packageProductDependencies = (
 				74CBD8BF2EED900000F226E3 /* KeyboardShortcuts */,
 				676D3DB62F6886AC00005D4B /* Yams */,
+				677D98A22F69236C00B3ACF9 /* SwiftSoup */,
 			);
 			productName = GeminiDesktop;
 			productReference = 74CBD8AA2EED8FCB00F226E3 /* Gemini Desktop.app */;
@@ -227,6 +231,7 @@
 			packageReferences = (
 				74CBD8BE2EED900000F226E3 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				676D3DB52F6886AC00005D4B /* XCRemoteSwiftPackageReference "Yams" */,
+				677D98A12F69236C00B3ACF9 /* XCRemoteSwiftPackageReference "SwiftSoup" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 74CBD8AB2EED8FCB00F226E3 /* Products */;
@@ -521,6 +526,14 @@
 				minimumVersion = 6.2.1;
 			};
 		};
+		677D98A12F69236C00B3ACF9 /* XCRemoteSwiftPackageReference "SwiftSoup" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/scinfu/SwiftSoup";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.13.1;
+			};
+		};
 		74CBD8BE2EED900000F226E3 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
@@ -536,6 +549,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 676D3DB52F6886AC00005D4B /* XCRemoteSwiftPackageReference "Yams" */;
 			productName = Yams;
+		};
+		677D98A22F69236C00B3ACF9 /* SwiftSoup */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 677D98A12F69236C00B3ACF9 /* XCRemoteSwiftPackageReference "SwiftSoup" */;
+			productName = SwiftSoup;
 		};
 		74CBD8BF2EED900000F226E3 /* KeyboardShortcuts */ = {
 			isa = XCSwiftPackageProductDependency;

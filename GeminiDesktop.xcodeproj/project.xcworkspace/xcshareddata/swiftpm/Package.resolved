@@ -1,5 +1,5 @@
 {
-  "originHash" : "a7985051fd77853981a54f342e0ff7e3faecf7bddeb106f45362431458e85307",
+  "originHash" : "5eb15df09dfbba871564b32deca284c6f448f0715084c7156f8c75b83aa1c303",
   "pins" : [
     {
       "identity" : "keyboardshortcuts",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "1aef85578fdd4f9eaeeb8d53b7b4fc31bf08fe27",
         "version" : "2.4.0"
+      }
+    },
+    {
+      "identity" : "swiftsoup",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/scinfu/SwiftSoup",
+      "state" : {
+        "revision" : "dba183c96b2da4e4b80bb31b1e2e59cb9542b8fc",
+        "version" : "2.13.1"
       }
     },
     {

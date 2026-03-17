@@ -39,9 +39,7 @@ struct CaptureLastArtifactIntent: AppIntent {
         }
 
         // Save as artifact on main thread
-        await MainActor.run {
-            coordinator.saveArtifact(markdown: markdownContent, filename: filename)
-        }
+        await coordinator.saveArtifact(markdown: markdownContent, filename: filename)
 
         return .result(dialog: "Response captured as '\(filename).md'")
     }

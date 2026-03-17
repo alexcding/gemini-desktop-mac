@@ -343,86 +343,16 @@ enum UserScripts {
     nonisolated static func createCaptureScript(lastResponseSelector: String) -> String {
         """
         (function() {
-            // Check if still streaming
-            if (document.querySelector("button[aria-label='Stop response']")) {
+            // Check if still streaming — look for structural class or data attribute, then fallback to localized aria-label
+            const isStreaming = document.querySelector('[data-streaming="true"]')
+                || Array.from(document.querySelectorAll('button[aria-label*="Stop"]')).length > 0;
+
+            if (isStreaming) {
                 return '__streaming__';
             }
 
             const responseEl = document.querySelector('\(lastResponseSelector)');
-            if (!responseEl) return '';
-
-            function domToMarkdown(node, depth = 0) {
-                let markdown = '';
-                const indent = '  '.repeat(depth);
-
-                if (node.nodeType === 3) {
-                    markdown = node.textContent.trim();
-                } else if (node.nodeType === 1) {
-                    const tag = node.tagName.toLowerCase();
-                    const text = Array.from(node.childNodes).map(child => domToMarkdown(child, depth)).join('').trim();
-
-                    switch (tag) {
-                    case 'h1': markdown = '# ' + text; break;
-                    case 'h2': markdown = '## ' + text; break;
-                    case 'h3': markdown = '### ' + text; break;
-                    case 'h4': markdown = '#### ' + text; break;
-                    case 'h5': markdown = '##### ' + text; break;
-                    case 'h6': markdown = '###### ' + text; break;
-                    case 'p': markdown = text + '\\n\\n'; break;
-                    case 'strong':
-                    case 'b': markdown = '**' + text + '**'; break;
-                    case 'em':
-                    case 'i': markdown = '_' + text + '_'; break;
-                    case 'code': markdown = '`' + text + '`'; break;
-                    case 'pre': {
-                        const codeEl = node.querySelector('code');
-                        const code = codeEl ? (codeEl.innerText || codeEl.textContent) : text;
-                        markdown = '```\\n' + code + '\\n```\\n';
-                        break;
-                    }
-                    case 'blockquote': markdown = '> ' + text.split('\\n').join('\\n> ') + '\\n'; break;
-                    case 'ul':
-                    case 'ol': {
-                        let items = [];
-                        node.querySelectorAll(':scope > li').forEach((li, idx) => {
-                            const prefix = tag === 'ol' ? (idx + 1) + '. ' : '- ';
-                            items.push(prefix + domToMarkdown(li, depth + 1).trim());
-                        });
-                        markdown = items.join('\\n') + '\\n';
-                        break;
-                    }
-                    case 'a': {
-                        const href = node.getAttribute('href') || '';
-                        markdown = '[' + text + '](' + href + ')';
-                        break;
-                    }
-                    case 'table': {
-                        const rows = node.querySelectorAll('tr');
-                        const table = [];
-                        rows.forEach((row, idx) => {
-                            const cells = Array.from(row.querySelectorAll('th, td')).map(cell =>
-                                domToMarkdown(cell, depth).trim()
-                            );
-                            table.push('| ' + cells.join(' | ') + ' |');
-                            if (idx === 0) {
-                                table.push('| ' + cells.map(() => '---').join(' | ') + ' |');
-                            }
-                        });
-                        markdown = table.join('\\n') + '\\n';
-                        break;
-                    }
-                    case 'br': markdown = '\\n'; break;
-                    default:
-                        Array.from(node.childNodes).forEach(child => {
-                            markdown += domToMarkdown(child, depth);
-                        });
-                    }
-                }
-
-                return markdown;
-            }
-
-            return domToMarkdown(responseEl).trim();
+            return responseEl ? responseEl.innerHTML : '';
         })();
         """
     }

@@ -14,6 +14,13 @@ struct ArtifactCaptureButton: View {
         Button(action: { showingSheet = true }) {
             Image(systemName: "square.and.arrow.down.on.square")
         }
+        .disabled(coordinator.captureProgress != nil)
+        .overlay(alignment: .bottom) {
+            if coordinator.captureProgress != nil {
+                ProgressIndicator(progress: coordinator.captureProgress)
+                    .offset(y: 30)
+            }
+        }
         .sheet(isPresented: $showingSheet) {
             FilenameInputSheet(
                 isPresented: $showingSheet,
@@ -23,6 +30,46 @@ struct ArtifactCaptureButton: View {
                     showingSheet = false
                 }
             )
+        }
+    }
+}
+
+private struct ProgressIndicator: View {
+    let progress: AppCoordinator.CaptureProgress?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            switch progress {
+            case .started, .converting, .saving:
+                ProgressView()
+                    .scaleEffect(0.75)
+            case .completed, .failed, nil:
+                EmptyView()
+            }
+
+            Text(statusLabel)
+                .font(.caption)
+                .lineLimit(1)
+        }
+        .padding(8)
+        .background(.regularMaterial)
+        .cornerRadius(6)
+    }
+
+    private var statusLabel: String {
+        switch progress {
+        case .started:
+            return "Starting…"
+        case .converting:
+            return "Converting…"
+        case .saving:
+            return "Saving…"
+        case .completed(let filename):
+            return "Saved: \(filename)"
+        case .failed(let error):
+            return "Error: \(error)"
+        case nil:
+            return ""
         }
     }
 }
