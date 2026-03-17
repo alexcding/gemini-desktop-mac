@@ -94,11 +94,9 @@ struct MainWindowView: View {
     }
 
     private func applyColor(to window: NSWindow) {
-        if useCustomToolbarColor, let color = Color(toolbarColorHex) {
-            window.backgroundColor = NSColor(color)
-        } else {
-            window.backgroundColor = GeminiDesktopApp.Constants.toolbarColor
-        }
+        // Toolbar color is applied via SwiftUI's .toolbarBackground() modifier.
+        // Do not set window.backgroundColor as it fills the entire content area
+        // and covers the WebView during initial load.
     }
 
     private func applyColorToAllWindows() {
