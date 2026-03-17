@@ -247,7 +247,7 @@ class AppCoordinator {
         return result
     }
 
-    private func saveArtifact(markdown: String, filename: String) {
+    func saveArtifact(markdown: String, filename: String) {
         let bookmarkStore = BookmarkStore()
         do {
             _ = try bookmarkStore.withBookmarkedURL(for: .artifactsDirectoryBookmark) { dirURL in

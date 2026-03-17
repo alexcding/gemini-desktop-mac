@@ -124,6 +124,25 @@ class WebViewModel {
         wkWebView.evaluateJavaScript(script, completionHandler: nil)
     }
 
+    // MARK: - Response Capture
+
+    func isStreamingResponse() async -> Bool {
+        let script = """
+        (function() {
+            return document.querySelector("button[aria-label='Stop response']") !== null;
+        })();
+        """
+
+        do {
+            if let result = try await wkWebView.evaluateJavaScript(script) as? NSNumber {
+                return result.boolValue
+            }
+        } catch {
+            return false
+        }
+        return false
+    }
+
     // MARK: - Zoom
 
     func zoomIn() {

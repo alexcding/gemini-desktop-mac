@@ -11,10 +11,13 @@ struct SettingsView: View {
     @AppStorage(UserDefaultsKeys.appTheme.rawValue) private var appTheme: String = AppTheme.system.rawValue
     @AppStorage(UserDefaultsKeys.useCustomToolbarColor.rawValue) private var useCustomToolbarColor: Bool = false
     @AppStorage(UserDefaultsKeys.toolbarColorHex.rawValue) private var toolbarColorHex: String = "#34A853"
+    @AppStorage(UserDefaultsKeys.promptInjectionMode.rawValue) private var promptInjectionMode: String = "copy"
 
     @State private var showingResetAlert = false
     @State private var isClearing = false
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var promptsDirLabel: String = ""
+    @State private var artifactsDirLabel: String = ""
 
     var body: some View {
         Form {
@@ -93,8 +96,51 @@ struct SettingsView: View {
                         .overlay { if isClearing { ProgressView().scaleEffect(0.7) } }
                 }
             }
+
+            Section("Prompts & Artifacts") {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Prompts Folder")
+                        Text(promptsDirLabel.isEmpty ? "No folder selected" : promptsDirLabel)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Choose…") {
+                        chooseDirectory(label: $promptsDirLabel, key: .promptsDirectoryBookmark)
+                    }
+                }
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Artifacts Folder")
+                        Text(artifactsDirLabel.isEmpty ? "No folder selected" : artifactsDirLabel)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Choose…") {
+                        chooseDirectory(label: $artifactsDirLabel, key: .artifactsDirectoryBookmark)
+                    }
+                }
+
+                HStack {
+                    Text("Injection Mode")
+                    Spacer()
+                    Picker("", selection: $promptInjectionMode) {
+                        Text("Copy to Clipboard").tag("copy")
+                        Text("Inject into Gemini").tag("inject")
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 260)
+                }
+            }
         }
         .formStyle(.grouped)
+        .onAppear {
+            loadDirectoryLabels()
+        }
         .alert("Reset Website Data?", isPresented: $showingResetAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Reset", role: .destructive) { Task { await clearWebsiteData() } }
@@ -110,6 +156,42 @@ struct SettingsView: View {
         let records = await dataStore.dataRecords(ofTypes: types)
         await dataStore.removeData(ofTypes: types, for: records)
         isClearing = false
+    }
+
+    private func loadDirectoryLabels() {
+        let bookmarkStore = BookmarkStore()
+        if let url = bookmarkStore.resolveBookmark(for: .promptsDirectoryBookmark) {
+            promptsDirLabel = url.lastPathComponent
+        }
+        if let url = bookmarkStore.resolveBookmark(for: .artifactsDirectoryBookmark) {
+            artifactsDirLabel = url.lastPathComponent
+        }
+    }
+
+    private func chooseDirectory(label: Binding<String>, key: UserDefaultsKeys) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.title = "Choose \(key == .promptsDirectoryBookmark ? "Prompts" : "Artifacts") Folder"
+
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+
+            let bookmarkStore = BookmarkStore()
+            do {
+                try bookmarkStore.saveBookmark(for: url, key: key)
+                label.wrappedValue = url.lastPathComponent
+
+                // Reload prompts library if it's the prompts directory
+                if key == .promptsDirectoryBookmark {
+                    coordinator.promptLibrary.reload()
+                    coordinator.promptLibrary.startWatching()
+                }
+            } catch {
+                // Silently fail if bookmark save fails
+            }
+        }
     }
 }
 

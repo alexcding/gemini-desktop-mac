@@ -13,6 +13,7 @@ struct MainWindowView: View {
     @Environment(\.openWindow) private var openWindow
     @AppStorage(UserDefaultsKeys.useCustomToolbarColor.rawValue) private var useCustomToolbarColor: Bool = false
     @AppStorage(UserDefaultsKeys.toolbarColorHex.rawValue) private var toolbarColorHex: String = "#34A853"
+    @AppStorage(UserDefaultsKeys.promptInjectionMode.rawValue) private var promptInjectionMode: String = "copy"
 
     var body: some View {
         GeminiWebView(webView: coordinator.webViewModel.wkWebView)
@@ -43,6 +44,16 @@ struct MainWindowView: View {
                 }
 
                 ToolbarItem(placement: .primaryAction) {
+                    ArtifactCaptureButton(coordinator: coordinator)
+                        .help("Capture Last Response as Artifact")
+                }
+
+                ToolbarItem(placement: .primaryAction) {
+                    PromptsMenuButton(coordinator: coordinator, injectionMode: promptInjectionMode)
+                        .help("Insert Saved Prompt")
+                }
+
+                ToolbarItem(placement: .primaryAction) {
                     Button {
                         minimizeToPrompt()
                     } label: {
@@ -51,6 +62,24 @@ struct MainWindowView: View {
                     .help("Minimize to Prompt Panel")
                 }
             }
+            .overlay(alignment: .top) {
+                if let msg = coordinator.injectionBannerMessage {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                        Text(msg)
+                        Spacer()
+                        Button(action: { coordinator.dismissInjectionBanner() }) {
+                            Image(systemName: "xmark")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(10)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    .padding([.horizontal, .top], 12)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: coordinator.injectionBannerMessage)
     }
 
     private var mainWindows: [NSWindow] {
