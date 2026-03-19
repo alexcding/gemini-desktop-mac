@@ -25,6 +25,7 @@ struct ArtifactCaptureButton: View {
             FilenameInputSheet(
                 isPresented: $showingSheet,
                 filename: $filenameInput,
+                initialFilename: coordinator.defaultArtifactFilename(),
                 onSave: {
                     coordinator.captureLastResponse(suggestedFilename: filenameInput)
                     showingSheet = false
@@ -77,14 +78,17 @@ private struct ProgressIndicator: View {
 private struct FilenameInputSheet: View {
     @Binding var isPresented: Bool
     @Binding var filename: String
+    let initialFilename: String
     var onSave: () -> Void
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         VStack(spacing: 16) {
             Text("Save Artifact As")
                 .font(.headline)
 
-            TextField("Filename (without .md extension)", text: $filename)
+            TextField("Filename (e.g. Gemini-2026-03-19-143022.md)", text: $filename)
+                .focused($isFocused)
                 .textFieldStyle(.roundedBorder)
                 .padding(.horizontal)
 
@@ -105,7 +109,11 @@ private struct FilenameInputSheet: View {
         .padding()
         .frame(minWidth: 300)
         .onAppear {
-            filename = ""
+            filename = initialFilename
+            isFocused = true
+            DispatchQueue.main.async {
+                NSApp.keyWindow?.firstResponder?.tryToPerform(#selector(NSText.selectAll(_:)), with: nil)
+            }
         }
     }
 }
