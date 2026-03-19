@@ -343,9 +343,8 @@ enum UserScripts {
     nonisolated static func createCaptureScript(lastResponseSelector: String) -> String {
         """
         (function() {
-            // Check if still streaming — look for structural class or data attribute, then fallback to localized aria-label
-            const isStreaming = document.querySelector('[data-streaming="true"]')
-                || Array.from(document.querySelectorAll('button[aria-label*="Stop"]')).length > 0;
+            // Check if still streaming — look for structural CSS class (language-agnostic)
+            const isStreaming = document.querySelector('button.send-button.stop') !== null;
 
             if (isStreaming) {
                 return '__streaming__';
