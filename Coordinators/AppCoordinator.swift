@@ -354,7 +354,7 @@ class AppCoordinator {
         return escaped
     }
 
-    private func defaultArtifactFilename() -> String {
+    func defaultArtifactFilename() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd-HHmmss"
         return "Gemini-\(formatter.string(from: Date())).md"
