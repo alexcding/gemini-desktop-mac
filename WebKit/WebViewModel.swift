@@ -75,6 +75,29 @@ final class FilePickerHandler: NSObject, WKScriptMessageHandler {
     }
 }
 
+/// Buffers batchexecute payloads captured by the fetch interceptor script.
+/// Added to WKUserContentController only when debug mode is on at launch.
+@MainActor
+final class DebugNetworkHandler: NSObject, WKScriptMessageHandler {
+    private let maxBufferSize = 20
+    private(set) var payloadBuffer: [[String: String]] = []
+
+    func userContentController(
+        _ userContentController: WKUserContentController,
+        didReceive message: WKScriptMessage
+    ) {
+        guard let body = message.body as? [String: Any] else { return }
+        let entry: [String: String] = [
+            "url": body["url"] as? String ?? "",
+            "payload": body["payload"] as? String ?? ""
+        ]
+        payloadBuffer.append(entry)
+        if payloadBuffer.count > maxBufferSize {
+            payloadBuffer.removeFirst()
+        }
+    }
+}
+
 /// Tracks navigation state for page readiness
 @MainActor
 class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
@@ -114,6 +137,10 @@ class WebViewModel {
     private(set) var isAtHome: Bool = true
     private(set) var isPageReady: Bool = false
 
+    var networkPayloadBuffer: [[String: String]] {
+        debugNetworkHandler?.payloadBuffer ?? []
+    }
+
     // MARK: - Private Properties
 
     private var backObserver: NSKeyValueObservation?
@@ -122,6 +149,7 @@ class WebViewModel {
     private let consoleLogHandler = ConsoleLogHandler()
     private let navigationDelegate = WebViewNavigationDelegate()
     private let filePickerHandler: FilePickerHandler
+    private let debugNetworkHandler: DebugNetworkHandler?
 
     // MARK: - Initialization
 
@@ -145,6 +173,27 @@ class WebViewModel {
         }
         navigationDelegate.onNavigationStart = { [weak self] in
             self?.isPageReady = false
+        }
+
+        // Register fetch interceptor for debug network capture (only when debug mode on at launch)
+        let debugModeEnabled = UserDefaults.standard.bool(
+            forKey: UserDefaultsKeys.debugModeEnabled.rawValue
+        )
+        if debugModeEnabled {
+            let handler = DebugNetworkHandler()
+            self.debugNetworkHandler = handler
+            webView.configuration.userContentController.add(
+                handler,
+                name: UserScripts.debugNetworkCaptureHandler
+            )
+            let interceptorScript = WKUserScript(
+                source: UserScripts.createFetchInterceptorScript(),
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: true
+            )
+            webView.configuration.userContentController.addUserScript(interceptorScript)
+        } else {
+            self.debugNetworkHandler = nil
         }
 
         setupObservers()
