@@ -22,7 +22,7 @@ class ConsoleLogHandler: NSObject, WKScriptMessageHandler {
 /// calls back to JS with gemini-file:// URLs for the selected files.
 @MainActor
 final class FilePickerHandler: NSObject, WKScriptMessageHandler {
-    weak var webView: WKWebView?
+    private weak var webView: WKWebView?
     private let schemeHandler: GeminiFileSchemeHandler
 
     init(webView: WKWebView, schemeHandler: GeminiFileSchemeHandler) {
@@ -34,15 +34,18 @@ final class FilePickerHandler: NSObject, WKScriptMessageHandler {
                                 didReceive message: WKScriptMessage) {
         guard let body = message.body as? [String: Any],
               let multiple = body["multiple"] as? Bool,
-              let nonce = body["nonce"] as? String else { return }
+              let rawNonce = body["nonce"] as? String else { return }
+        let nonce = rawNonce.filter { $0.isLetter || $0.isNumber }
+        guard !nonce.isEmpty else { return }
 
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = multiple
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
 
-        // Clear previous registrations only after the new panel is about to present,
-        // so any in-flight fetch requests from the previous selection can still complete.
+        // Clear previous registrations before presenting. Any in-flight gemini-file://
+        // fetches from the previous selection will fail — the JS .catch handler logs
+        // the error and clears pendingFileInput gracefully.
         schemeHandler.clearRegistry()
 
         panel.begin { [weak self] response in
