@@ -85,7 +85,10 @@ extension ArtifactMetadata {
             lines.append("attachments: []")
         } else {
             lines.append("attachments:")
-            attachments.forEach { lines.append("  - \"\($0)\"") }
+            attachments.forEach {
+                let escaped = $0.replacingOccurrences(of: "\"", with: "\\\"")
+                lines.append("  - \"\(escaped)\"")
+            }
         }
 
         if let webkitVersion { lines.append("webkit_version: \"\(webkitVersion)\"") }
