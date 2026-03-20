@@ -327,33 +327,30 @@ enum UserScripts {
         };
 
         // Called by Swift after NSOpenPanel completes.
-        // urls: array of gemini-file:// strings, or empty on cancel.
-        window.__GeminiDesktop.filesSelected = function(nonce, urls) {
+        // fileDataArray: array of {name, type, data} objects with base64-encoded data,
+        // or empty on cancel. Data is passed via callAsyncJavaScript (not fetch) to
+        // bypass Gemini's Content-Security-Policy connect-src restrictions.
+        window.__GeminiDesktop.filesSelectedWithData = function(nonce, fileDataArray) {
             if (nonce !== pendingNonce) { return; } // stale response from a previous picker
             var input = pendingFileInput;
             pendingFileInput = null;
             pendingNonce = null;
-            if (!input || !urls.length) { return; }
+            if (!input || !fileDataArray || !fileDataArray.length) { return; }
 
-            Promise.all(urls.map(function(url) {
-                return fetch(url).then(function(r) {
-                    if (!r.ok) { throw new Error('[GeminiDesktop] fetch failed: ' + r.status); }
-                    var type = r.headers.get('Content-Type') || 'application/octet-stream';
-                    var rawName = new URL(url).pathname.split('/').pop() || 'file';
-                    var name = decodeURIComponent(rawName);
-                    return r.arrayBuffer().then(function(buf) {
-                        return new File([buf], name, { type: type });
-                    });
-                });
-            })).then(function(files) {
+            try {
                 var dt = new DataTransfer();
-                files.forEach(function(f) { dt.items.add(f); });
+                fileDataArray.forEach(function(fd) {
+                    var binary = atob(fd.data);
+                    var bytes = new Uint8Array(binary.length);
+                    for (var i = 0; i < binary.length; i++) { bytes[i] = binary.charCodeAt(i); }
+                    dt.items.add(new File([bytes.buffer], fd.name, { type: fd.type }));
+                });
                 input.files = dt.files; // supported in WebKit via DataTransfer
                 input.dispatchEvent(new Event('change', { bubbles: true }));
                 input.dispatchEvent(new Event('input', { bubbles: true }));
-            }).catch(function(err) {
-                console.error('[GeminiDesktop] File picker error:', err);
-            });
+            } catch (err) {
+                console.error('[GeminiDesktop] File data error:', err);
+            }
         };
     })();
     """

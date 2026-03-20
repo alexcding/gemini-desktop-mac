@@ -7,6 +7,7 @@
 
 import WebKit
 import Combine
+import UniformTypeIdentifiers
 
 /// Handles console.log messages from JavaScript
 @MainActor
@@ -19,15 +20,13 @@ class ConsoleLogHandler: NSObject, WKScriptMessageHandler {
 }
 
 /// Receives fileInputClicked messages from JS, presents NSOpenPanel, and
-/// calls back to JS with gemini-file:// URLs for the selected files.
+/// passes file data back to JS via callAsyncJavaScript (bypasses CSP).
 @MainActor
 final class FilePickerHandler: NSObject, WKScriptMessageHandler {
     private weak var webView: WKWebView?
-    private let schemeHandler: GeminiFileSchemeHandler
 
-    init(webView: WKWebView, schemeHandler: GeminiFileSchemeHandler) {
+    init(webView: WKWebView) {
         self.webView = webView
-        self.schemeHandler = schemeHandler
     }
 
     func userContentController(_ userContentController: WKUserContentController,
@@ -46,25 +45,33 @@ final class FilePickerHandler: NSObject, WKScriptMessageHandler {
         // Gemini uses accept="" (unrestricted) and NSOpenPanel type filtering
         // requires non-trivial MIME wildcard → UTType conversion.
 
-        // Clear previous registrations before presenting. Any in-flight gemini-file://
-        // fetches from the previous selection will fail — the JS .catch handler logs
-        // the error and clears pendingFileInput gracefully.
-        schemeHandler.clearRegistry()
-
         panel.begin { [weak self] response in
             guard let self, let webView = self.webView else { return }
-            let jsCallback: String
-            if response == .OK, !panel.urls.isEmpty {
-                let urls = self.schemeHandler.register(files: panel.urls)
-                let urlsJSON = urls
-                    .map { "\"\($0)\"" }
-                    .joined(separator: ", ")
-                jsCallback = "window.__GeminiDesktop.filesSelected('\(nonce)', [\(urlsJSON)])"
-            } else {
-                jsCallback = "window.__GeminiDesktop.filesSelected('\(nonce)', [])"
+            var fileDataArray: [[String: String]] = []
+            if response == .OK {
+                for url in panel.urls {
+                    guard let data = try? Data(contentsOf: url) else { continue }
+                    fileDataArray.append([
+                        "name": url.lastPathComponent,
+                        "type": self.mimeType(for: url),
+                        "data": data.base64EncodedString()
+                    ])
+                }
             }
-            webView.evaluateJavaScript(jsCallback, completionHandler: nil)
+            webView.callAsyncJavaScript(
+                "window.__GeminiDesktop.filesSelectedWithData(nonce, files)",
+                arguments: ["nonce": nonce, "files": fileDataArray],
+                in: nil,
+                in: .page,
+                completionHandler: nil
+            )
         }
+    }
+
+    private func mimeType(for url: URL) -> String {
+        guard let utType = UTType(filenameExtension: url.pathExtension),
+              let mime = utType.preferredMIMEType else { return "application/octet-stream" }
+        return mime
     }
 }
 
@@ -114,19 +121,14 @@ class WebViewModel {
     private var urlObserver: NSKeyValueObservation?
     private let consoleLogHandler = ConsoleLogHandler()
     private let navigationDelegate = WebViewNavigationDelegate()
-    // Retained to keep the scheme handler alive; filePickerHandler holds the working reference.
-    private let schemeHandler: GeminiFileSchemeHandler
     private let filePickerHandler: FilePickerHandler
 
     // MARK: - Initialization
 
     init() {
-        // Initialize scheme handler first — must be registered on config before WebView is created
-        let schemeHandler = GeminiFileSchemeHandler()
-        let webView = Self.createWebView(consoleLogHandler: consoleLogHandler, schemeHandler: schemeHandler)
-        let filePickerHandler = FilePickerHandler(webView: webView, schemeHandler: schemeHandler)
+        let webView = Self.createWebView(consoleLogHandler: consoleLogHandler)
+        let filePickerHandler = FilePickerHandler(webView: webView)
 
-        self.schemeHandler = schemeHandler
         self.wkWebView = webView
         self.filePickerHandler = filePickerHandler
 
@@ -234,16 +236,12 @@ class WebViewModel {
     // MARK: - Private Setup
 
     private static func createWebView(
-        consoleLogHandler: ConsoleLogHandler,
-        schemeHandler: GeminiFileSchemeHandler
+        consoleLogHandler: ConsoleLogHandler
     ) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
-
-        // Register custom scheme handler for serving locally selected files
-        configuration.setURLSchemeHandler(schemeHandler, forURLScheme: GeminiFileSchemeHandler.scheme)
 
         // Add user scripts
         for script in UserScripts.createAllScripts() {
