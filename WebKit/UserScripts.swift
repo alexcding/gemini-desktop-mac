@@ -74,28 +74,29 @@ enum UserScripts {
 
     /// Creates a script that extracts conversation metadata from the Gemini DOM.
     /// Returns a JSON string. Wraps everything in try/catch — returns "{}" on any exception.
-    /// All selectors are best-effort; missing fields are simply absent from the JSON.
+    /// Selectors sourced from GeminiSelectors.shared (user-patchable via gemini-selectors.json).
     nonisolated static func createMetadataScript() -> String {
-        """
+        let s = GeminiSelectors.shared
+        return """
         (function() {
             try {
                 var url = window.location.href;
                 var idMatch = url.match(/\\/app\\/([a-zA-Z0-9_-]+)/);
                 var conversationId = idMatch ? idMatch[1] : null;
 
-                var responseIndex = document.querySelectorAll('response-container').length;
+                var responseIndex = document.querySelectorAll('\(s.responseContainer)').length;
 
-                var modelEl = document.querySelector('[data-test-id="bard-mode-menu-button"]')
-                    || document.querySelector('[data-test-id="logo-pill-label-container"]');
+                var modelEl = document.querySelector('\(s.modelSelector)')
+                    || document.querySelector('\(s.modelSelectorFallback)');
                 var geminiModel = modelEl ? modelEl.textContent.trim() : null;
 
-                var userTurns = document.querySelectorAll('user-query .query-text-line');
+                var userTurns = document.querySelectorAll('\(s.userQuerySelector)');
                 var request = null;
                 if (userTurns.length > 0) {
                     request = userTurns[userTurns.length - 1].textContent.trim();
                 }
 
-                var attachmentEls = document.querySelectorAll('.attachment-chip .attachment-name');
+                var attachmentEls = document.querySelectorAll('\(s.attachmentSelector)');
                 var attachments = Array.from(attachmentEls)
                     .map(function(el) { return el.textContent.trim(); })
                     .filter(Boolean);
@@ -107,7 +108,7 @@ enum UserScripts {
                 return JSON.stringify({
                     conversation_url: url,
                     conversation_id: conversationId,
-                    conversation_title: (document.querySelector('a.conversation.selected') || {textContent: ''}).textContent.trim() || null,
+                    conversation_title: (document.querySelector('\(s.conversationTitleSelector)') || {textContent: ''}).textContent.trim() || null,
                     response_index: responseIndex,
                     gemini_model: geminiModel,
                     request: request,
