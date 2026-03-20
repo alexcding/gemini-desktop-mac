@@ -236,6 +236,11 @@ class AppCoordinator {
                 captureProgress = .streaming
                 try? await Task.sleep(for: .seconds(3))
                 self.captureProgress = nil
+            } catch AppIntentError.notAuthenticated {
+                // Page not ready — transient user state, not a system error, no log entry
+                captureProgress = .failed(error: AppIntentError.notAuthenticated.localizedDescription)
+                try? await Task.sleep(for: .seconds(3))
+                self.captureProgress = nil
             } catch {
                 ArtifactLogger.logError(error)
                 captureProgress = .failed(error: error.localizedDescription)
