@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage(UserDefaultsKeys.useCustomToolbarColor.rawValue) private var useCustomToolbarColor: Bool = false
     @AppStorage(UserDefaultsKeys.toolbarColorHex.rawValue) private var toolbarColorHex: String = "#34A853"
     @AppStorage(UserDefaultsKeys.promptInjectionMode.rawValue) private var promptInjectionMode: String = "copy"
+    @AppStorage(UserDefaultsKeys.debugModeEnabled.rawValue) private var debugModeEnabled: Bool = false
 
     @State private var showingResetAlert = false
     @State private var isClearing = false
@@ -148,6 +149,14 @@ struct SettingsView: View {
                     Button("Reveal in Finder") {
                         revealSelectorsDirectory()
                     }
+                }
+            }
+            Section("Advanced") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle("Enable Debug Mode", isOn: $debugModeEnabled)
+                    Text("Only needed by developers or when filing a selector bug report. Restart the app after enabling for network capture to work.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
