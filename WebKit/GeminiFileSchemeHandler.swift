@@ -1,0 +1,111 @@
+//
+//  GeminiFileSchemeHandler.swift
+//  GeminiDesktop
+//
+
+import WebKit
+import UniformTypeIdentifiers
+
+/// Custom URL scheme handler that serves locally selected files to the Gemini web page.
+///
+/// Files are registered under `gemini-file://[uuid]/[filename]` URLs and served
+/// directly from disk on request. This allows JS to reconstruct File objects from
+/// native NSOpenPanel selections without base64 encoding.
+final class GeminiFileSchemeHandler: NSObject, WKURLSchemeHandler {
+
+    static let scheme = "gemini-file"
+
+    private let lock = NSLock()
+    private var registry: [String: URL] = [:]           // uuid → local file URL
+    private var activeTasks: Set<ObjectIdentifier> = []  // tasks currently in flight
+
+    // MARK: - Registry
+
+    /// Register an array of local file URLs. Returns the corresponding gemini-file:// URLs.
+    func register(files: [URL]) -> [String] {
+        lock.withLock {
+            files.map { fileURL in
+                let uuid = UUID().uuidString
+                registry[uuid] = fileURL
+                let encoded = fileURL.lastPathComponent
+                    .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? fileURL.lastPathComponent
+                return "\(Self.scheme)://\(uuid)/\(encoded)"
+            }
+        }
+    }
+
+    /// Clear all registered files. Call before presenting a new NSOpenPanel.
+    func clearRegistry() {
+        lock.withLock { registry = [:] }
+    }
+
+    // MARK: - WKURLSchemeHandler
+
+    func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
+        let taskId = ObjectIdentifier(urlSchemeTask)
+        lock.withLock { activeTasks.insert(taskId) }
+
+        guard let url = urlSchemeTask.request.url,
+              let uuid = url.host else {
+            failTask(urlSchemeTask, id: taskId, error: URLError(.badURL))
+            return
+        }
+
+        let fileURL: URL? = lock.withLock { registry[uuid] }
+        guard let fileURL else {
+            failTask(urlSchemeTask, id: taskId, error: URLError(.fileDoesNotExist))
+            return
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            do {
+                let data = try Data(contentsOf: fileURL)
+                let mimeType = self.mimeType(for: fileURL)
+                let headers: [String: String] = [
+                    "Content-Type": mimeType,
+                    "Content-Length": "\(data.count)",
+                    "Access-Control-Allow-Origin": "*"
+                ]
+                guard let response = HTTPURLResponse(
+                    url: url,
+                    statusCode: 200,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: headers
+                ) else { return }
+
+                self.lock.withLock {
+                    guard self.activeTasks.contains(taskId) else { return }
+                    urlSchemeTask.didReceive(response)
+                    urlSchemeTask.didReceive(data)
+                    urlSchemeTask.didFinish()
+                    self.activeTasks.remove(taskId)
+                }
+            } catch {
+                self.failTask(urlSchemeTask, id: taskId, error: error)
+            }
+        }
+    }
+
+    func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {
+        lock.withLock { activeTasks.remove(ObjectIdentifier(urlSchemeTask)) }
+    }
+
+    // MARK: - Private
+
+    private func failTask(_ task: any WKURLSchemeTask, id: ObjectIdentifier, error: Error) {
+        lock.withLock {
+            guard activeTasks.contains(id) else { return }
+            task.didFailWithError(error)
+            activeTasks.remove(id)
+        }
+    }
+
+    private func mimeType(for url: URL) -> String {
+        guard let utType = UTType(filenameExtension: url.pathExtension),
+              let mime = utType.preferredMIMEType else {
+            return "application/octet-stream"
+        }
+        return mime
+    }
+}
