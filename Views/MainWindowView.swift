@@ -85,11 +85,39 @@ struct MainWindowView: View {
                         captureBanner(progress: progress)
                             .transition(.move(edge: .top).combined(with: .opacity))
                     }
+
+                    // Debug capture confirmation banner
+                    if let filename = coordinator.debugCaptureBannerMessage {
+                        HStack(spacing: 8) {
+                            Image(systemName: "ant.circle")
+                                .foregroundStyle(.secondary)
+                            Text("Debug capture saved: \(filename)")
+                                .font(.callout)
+                                .lineLimit(1)
+                            Spacer()
+                            Button("Reveal") {
+                                revealDebugCaptures()
+                            }
+                            .font(.callout)
+                            .buttonStyle(.borderless)
+                            Button {
+                                coordinator.dismissDebugCaptureBanner()
+                            } label: {
+                                Image(systemName: "xmark")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                        }
+                        .padding(10)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
                 }
                 .padding([.horizontal, .top], 12)
             }
             .animation(.easeInOut(duration: 0.2), value: coordinator.injectionBannerMessage)
             .animation(.easeInOut(duration: 0.2), value: coordinator.captureProgress)
+            .animation(.easeInOut(duration: 0.2), value: coordinator.debugCaptureBannerMessage)
     }
 
     private var mainWindows: [NSWindow] {
@@ -116,6 +144,15 @@ struct MainWindowView: View {
     private func minimizeToPrompt() {
         mainWindows.first?.orderOut(nil)
         coordinator.showChatBar()
+    }
+
+    private func revealDebugCaptures() {
+        guard let appSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        ).first else { return }
+        let dir = appSupport.appendingPathComponent("GeminiDesktop/debug-captures")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(dir)
     }
 
     @ViewBuilder
