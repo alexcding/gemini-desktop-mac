@@ -30,6 +30,7 @@ class AppCoordinator {
     private(set) var isInjecting: Bool = false
     private(set) var injectionBannerMessage: String? = nil
     private(set) var captureProgress: CaptureProgress? = nil
+    private(set) var debugCaptureBannerMessage: String? = nil
 
     var canGoBack: Bool { webViewModel.canGoBack }
     var canGoForward: Bool { webViewModel.canGoForward }
@@ -365,6 +366,10 @@ class AppCoordinator {
         captureProgress = nil
     }
 
+    func dismissDebugCaptureBanner() {
+        debugCaptureBannerMessage = nil
+    }
+
     func waitForPageReady(timeout: TimeInterval) async throws {
         let deadline = Date().addingTimeInterval(timeout)
 
@@ -411,6 +416,107 @@ class AppCoordinator {
         }
 
         return url
+    }
+
+    // MARK: - Debug Capture
+
+    /// Builds a JSON string of { fieldName: selector } for all GeminiSelectors fields.
+    private func selectorDictJSON() -> String {
+        let s = GeminiSelectors.shared
+        let dict: [String: String] = [
+            "conversationContainer": s.conversationContainer,
+            "responseContainer": s.responseContainer,
+            "goodResponseButton": s.goodResponseButton,
+            "badResponseButton": s.badResponseButton,
+            "richTextareaSelector": s.richTextareaSelector,
+            "sendButtonSelector": s.sendButtonSelector,
+            "lastResponseSelector": s.lastResponseSelector,
+            "conversationTitleSelector": s.conversationTitleSelector,
+            "modelSelector": s.modelSelector,
+            "modelSelectorFallback": s.modelSelectorFallback,
+            "userQuerySelector": s.userQuerySelector,
+            "attachmentSelector": s.attachmentSelector,
+            "streamingIndicatorSelector": s.streamingIndicatorSelector
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: dict),
+              let json = String(data: data, encoding: .utf8) else { return "{}" }
+        return json
+    }
+
+    private func evaluateJSForCapture(_ script: String) async -> Any? {
+        await withCheckedContinuation { continuation in
+            webViewModel.wkWebView.evaluateJavaScript(script) { result, _ in
+                continuation.resume(returning: result)
+            }
+        }
+    }
+
+    func captureDebugAll()     async { await performDebugCapture(dom: true,  wiz: true,  network: true)  }
+    func captureDebugDOMOnly() async { await performDebugCapture(dom: true,  wiz: false, network: false) }
+    func captureDebugWIZOnly() async { await performDebugCapture(dom: false, wiz: true,  network: false) }
+    func captureDebugNetworkOnly() async { await performDebugCapture(dom: false, wiz: false, network: true) }
+
+    private func performDebugCapture(dom: Bool, wiz: Bool, network: Bool) async {
+        var output: [String: Any] = [
+            "capturedAt": ISO8601DateFormatter().string(from: Date()),
+            "appVersion": (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "unknown",
+            "url": webViewModel.wkWebView.url?.absoluteString ?? ""
+        ]
+
+        if dom, let result = await evaluateJSForCapture(
+            UserScripts.createDOMCaptureScript(selectorJSON: selectorDictJSON())
+        ) as? String,
+           let parsed = try? JSONSerialization.jsonObject(with: Data(result.utf8)) {
+            output["dom"] = parsed
+        }
+
+        if wiz, let result = await evaluateJSForCapture(
+            UserScripts.createWIZCaptureScript()
+        ) as? String,
+           let parsed = try? JSONSerialization.jsonObject(with: Data(result.utf8)) {
+            output["wizState"] = parsed
+        }
+
+        if network {
+            output["network"] = webViewModel.networkPayloadBuffer
+        }
+
+        guard let data = try? JSONSerialization.data(withJSONObject: output, options: .prettyPrinted) else {
+            debugCaptureBannerMessage = "Capture failed: could not serialize JSON"
+            try? await Task.sleep(for: .seconds(4))
+            debugCaptureBannerMessage = nil
+            return
+        }
+
+        do {
+            let filename = try await writeDebugCaptureFile(data)
+            debugCaptureBannerMessage = filename
+            try? await Task.sleep(for: .seconds(3))
+            debugCaptureBannerMessage = nil
+        } catch {
+            debugCaptureBannerMessage = "Capture failed: \(error.localizedDescription)"
+            try? await Task.sleep(for: .seconds(4))
+            debugCaptureBannerMessage = nil
+        }
+    }
+
+    nonisolated private func writeDebugCaptureFile(_ data: Data) async throws -> String {
+        try await Task.detached(priority: .userInitiated) {
+            let appSupport = FileManager.default.urls(
+                for: .applicationSupportDirectory, in: .userDomainMask
+            ).first!
+            let capturesDir = appSupport
+                .appendingPathComponent("GeminiDesktop/debug-captures")
+            try FileManager.default.createDirectory(
+                at: capturesDir, withIntermediateDirectories: true
+            )
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd-HHmmss"
+            let filename = "debug-\(formatter.string(from: Date())).json"
+            let url = capturesDir.appendingPathComponent(filename)
+            try data.write(to: url)
+            return filename
+        }.value
     }
 
 }
