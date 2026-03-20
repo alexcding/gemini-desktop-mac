@@ -16,6 +16,9 @@ enum UserScripts {
     /// Message handler name for conversation started notification
     static let conversationStartedHandler = "conversationStarted"
 
+    /// Message handler name for file input clicked notification
+    static let fileInputClickedHandler = "fileInputClicked"
+
     /// Creates all user scripts to be injected into the WebView
     nonisolated static func createAllScripts() -> [WKUserScript] {
         var scripts: [WKUserScript] = [

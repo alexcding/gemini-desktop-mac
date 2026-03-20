@@ -18,6 +18,50 @@ class ConsoleLogHandler: NSObject, WKScriptMessageHandler {
     }
 }
 
+/// Receives fileInputClicked messages from JS, presents NSOpenPanel, and
+/// calls back to JS with gemini-file:// URLs for the selected files.
+@MainActor
+final class FilePickerHandler: NSObject, WKScriptMessageHandler {
+    weak var webView: WKWebView?
+    private let schemeHandler: GeminiFileSchemeHandler
+
+    init(webView: WKWebView, schemeHandler: GeminiFileSchemeHandler) {
+        self.webView = webView
+        self.schemeHandler = schemeHandler
+    }
+
+    func userContentController(_ userContentController: WKUserContentController,
+                                didReceive message: WKScriptMessage) {
+        guard let body = message.body as? [String: Any],
+              let multiple = body["multiple"] as? Bool,
+              let nonce = body["nonce"] as? String else { return }
+
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = multiple
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+
+        // Clear previous registrations only after the new panel is about to present,
+        // so any in-flight fetch requests from the previous selection can still complete.
+        schemeHandler.clearRegistry()
+
+        panel.begin { [weak self] response in
+            guard let self, let webView = self.webView else { return }
+            let jsCallback: String
+            if response == .OK, !panel.urls.isEmpty {
+                let urls = self.schemeHandler.register(files: panel.urls)
+                let urlsJSON = urls
+                    .map { "\"\($0)\"" }
+                    .joined(separator: ", ")
+                jsCallback = "window.__GeminiDesktop.filesSelected('\(nonce)', [\(urlsJSON)])"
+            } else {
+                jsCallback = "window.__GeminiDesktop.filesSelected('\(nonce)', [])"
+            }
+            webView.evaluateJavaScript(jsCallback, completionHandler: nil)
+        }
+    }
+}
+
 /// Tracks navigation state for page readiness
 @MainActor
 class WebViewNavigationDelegate: NSObject, WKNavigationDelegate {
@@ -64,11 +108,27 @@ class WebViewModel {
     private var urlObserver: NSKeyValueObservation?
     private let consoleLogHandler = ConsoleLogHandler()
     private let navigationDelegate = WebViewNavigationDelegate()
+    private let schemeHandler: GeminiFileSchemeHandler
+    private let filePickerHandler: FilePickerHandler
 
     // MARK: - Initialization
 
     init() {
-        self.wkWebView = Self.createWebView(consoleLogHandler: consoleLogHandler)
+        // Initialize scheme handler first — must be registered on config before WebView is created
+        let schemeHandler = GeminiFileSchemeHandler()
+        let webView = Self.createWebView(consoleLogHandler: consoleLogHandler, schemeHandler: schemeHandler)
+        let filePickerHandler = FilePickerHandler(webView: webView, schemeHandler: schemeHandler)
+
+        self.schemeHandler = schemeHandler
+        self.wkWebView = webView
+        self.filePickerHandler = filePickerHandler
+
+        // Register file picker message handler after WebView exists
+        webView.configuration.userContentController.add(
+            filePickerHandler,
+            name: UserScripts.fileInputClickedHandler
+        )
+
         self.wkWebView.navigationDelegate = navigationDelegate
 
         navigationDelegate.onPageReady = { [weak self] in
@@ -166,11 +226,17 @@ class WebViewModel {
 
     // MARK: - Private Setup
 
-    private static func createWebView(consoleLogHandler: ConsoleLogHandler) -> WKWebView {
+    private static func createWebView(
+        consoleLogHandler: ConsoleLogHandler,
+        schemeHandler: GeminiFileSchemeHandler
+    ) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
+
+        // Register custom scheme handler for serving locally selected files
+        configuration.setURLSchemeHandler(schemeHandler, forURLScheme: GeminiFileSchemeHandler.scheme)
 
         // Add user scripts
         for script in UserScripts.createAllScripts() {
@@ -186,6 +252,9 @@ class WebViewModel {
         webView.allowsBackForwardNavigationGestures = true
         webView.allowsLinkPreview = true
         webView.customUserAgent = userAgent
+        #if DEBUG
+        webView.isInspectable = true
+        #endif
 
         let savedZoom = UserDefaults.standard.double(forKey: UserDefaultsKeys.pageZoom.rawValue)
         webView.pageZoom = savedZoom > 0 ? savedZoom : defaultPageZoom
