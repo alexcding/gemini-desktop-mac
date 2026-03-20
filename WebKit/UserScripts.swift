@@ -337,6 +337,7 @@ enum UserScripts {
 
             Promise.all(urls.map(function(url) {
                 return fetch(url).then(function(r) {
+                    if (!r.ok) { throw new Error('[GeminiDesktop] fetch failed: ' + r.status); }
                     var type = r.headers.get('Content-Type') || 'application/octet-stream';
                     var rawName = new URL(url).pathname.split('/').pop() || 'file';
                     var name = decodeURIComponent(rawName);
