@@ -89,7 +89,7 @@ enum UserScripts {
                     || document.querySelector('[data-test-id="logo-pill-label-container"]');
                 var geminiModel = modelEl ? modelEl.textContent.trim() : null;
 
-                var userTurns = document.querySelectorAll('user-query .query-text');
+                var userTurns = document.querySelectorAll('user-query .query-text-line');
                 var request = null;
                 if (userTurns.length > 0) {
                     request = userTurns[userTurns.length - 1].textContent.trim();
