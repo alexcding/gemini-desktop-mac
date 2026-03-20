@@ -58,6 +58,13 @@
 			);
 			target = 74CBD8A92EED8FCB00F226E3 /* GeminiDesktop */;
 		};
+		749D26FF3EEE2E930054BA30 /* Exceptions for "Artifacts" folder in "GeminiDesktop" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ArtifactMetadata.swift,
+			);
+			target = 74CBD8A92EED8FCB00F226E3 /* GeminiDesktop */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -121,6 +128,14 @@
 			path = ChatBar;
 			sourceTree = "<group>";
 		};
+		749D26EE3EEE2E930054BA30 /* Artifacts */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				749D26FF3EEE2E930054BA30 /* Exceptions for "Artifacts" folder in "GeminiDesktop" target */,
+			);
+			path = Artifacts;
+			sourceTree = "<group>";
+		};
 		84CBD8C02EED8FCC00F226E3 /* Prompts */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Prompts;
@@ -155,6 +170,7 @@
 				749D25D32EEE2C330054BA29 /* App */,
 				749D25D52EEE2C330054BA29 /* Coordinators */,
 				749D25E32EEE2C330054BA29 /* ChatBar */,
+				749D26EE3EEE2E930054BA30 /* Artifacts */,
 				7452D4CF2EF08E5D00EDD8A4 /* WebKit */,
 				749D25E12EEE2C330054BA29 /* Views */,
 				749D25DC2EEE2C330054BA29 /* Utils */,
