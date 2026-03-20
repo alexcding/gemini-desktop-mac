@@ -35,6 +35,9 @@ final class GeminiFileSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     /// Clear all registered files. Call before presenting a new NSOpenPanel.
+    /// Note: in-flight gemini-file:// fetches from the previous selection will
+    /// fail after this is called. This is acceptable — the JS error handler
+    /// handles fetch failures gracefully.
     func clearRegistry() {
         lock.withLock { registry = [:] }
     }
@@ -72,15 +75,18 @@ final class GeminiFileSchemeHandler: NSObject, WKURLSchemeHandler {
                     statusCode: 200,
                     httpVersion: "HTTP/1.1",
                     headerFields: headers
-                ) else { return }
-
-                self.lock.withLock {
-                    guard self.activeTasks.contains(taskId) else { return }
-                    urlSchemeTask.didReceive(response)
-                    urlSchemeTask.didReceive(data)
-                    urlSchemeTask.didFinish()
-                    self.activeTasks.remove(taskId)
+                ) else {
+                    self.failTask(urlSchemeTask, id: taskId, error: URLError(.unknown))
+                    return
                 }
+
+                let shouldProceed = self.lock.withLock {
+                    self.activeTasks.remove(taskId) != nil
+                }
+                guard shouldProceed else { return }
+                urlSchemeTask.didReceive(response)
+                urlSchemeTask.didReceive(data)
+                urlSchemeTask.didFinish()
             } catch {
                 self.failTask(urlSchemeTask, id: taskId, error: error)
             }
@@ -94,11 +100,11 @@ final class GeminiFileSchemeHandler: NSObject, WKURLSchemeHandler {
     // MARK: - Private
 
     private func failTask(_ task: any WKURLSchemeTask, id: ObjectIdentifier, error: Error) {
-        lock.withLock {
-            guard activeTasks.contains(id) else { return }
-            task.didFailWithError(error)
-            activeTasks.remove(id)
+        let shouldProceed = lock.withLock {
+            activeTasks.remove(id) != nil
         }
+        guard shouldProceed else { return }
+        task.didFailWithError(error)
     }
 
     private func mimeType(for url: URL) -> String {
