@@ -85,9 +85,8 @@ enum UserScripts {
 
                 var responseIndex = document.querySelectorAll('response-container').length;
 
-                var modelEl = document.querySelector('[data-test-id="model-switcher-button"]')
-                    || document.querySelector('.model-switcher-button')
-                    || document.querySelector('[jsname][aria-label*="Gemini"]');
+                var modelEl = document.querySelector('[data-test-id="bard-mode-menu-button"]')
+                    || document.querySelector('[data-test-id="logo-pill-label-container"]');
                 var geminiModel = modelEl ? modelEl.textContent.trim() : null;
 
                 var userTurns = document.querySelectorAll('user-query .query-text');
@@ -108,7 +107,7 @@ enum UserScripts {
                 return JSON.stringify({
                     conversation_url: url,
                     conversation_id: conversationId,
-                    conversation_title: document.title,
+                    conversation_title: (document.querySelector('a.conversation.selected') || {textContent: ''}).textContent.trim() || null,
                     response_index: responseIndex,
                     gemini_model: geminiModel,
                     request: request,
