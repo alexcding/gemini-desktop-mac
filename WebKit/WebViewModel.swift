@@ -42,6 +42,9 @@ final class FilePickerHandler: NSObject, WKScriptMessageHandler {
         panel.allowsMultipleSelection = multiple
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
+        // `accept` attribute from the file input is intentionally ignored —
+        // Gemini uses accept="" (unrestricted) and NSOpenPanel type filtering
+        // requires non-trivial MIME wildcard → UTType conversion.
 
         // Clear previous registrations before presenting. Any in-flight gemini-file://
         // fetches from the previous selection will fail — the JS .catch handler logs
@@ -111,6 +114,7 @@ class WebViewModel {
     private var urlObserver: NSKeyValueObservation?
     private let consoleLogHandler = ConsoleLogHandler()
     private let navigationDelegate = WebViewNavigationDelegate()
+    // Retained to keep the scheme handler alive; filePickerHandler holds the working reference.
     private let schemeHandler: GeminiFileSchemeHandler
     private let filePickerHandler: FilePickerHandler
 

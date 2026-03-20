@@ -27,8 +27,10 @@ final class GeminiFileSchemeHandler: NSObject, WKURLSchemeHandler {
             files.map { fileURL in
                 let uuid = UUID().uuidString
                 registry[uuid] = fileURL
+                var allowedChars = CharacterSet.urlPathAllowed
+                allowedChars.remove("\"")
                 let encoded = fileURL.lastPathComponent
-                    .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? fileURL.lastPathComponent
+                    .addingPercentEncoding(withAllowedCharacters: allowedChars) ?? fileURL.lastPathComponent
                 return "\(Self.scheme)://\(uuid)/\(encoded)"
             }
         }
