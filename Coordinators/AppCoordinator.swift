@@ -220,32 +220,39 @@ class AppCoordinator {
         }
     }
 
-    func captureLastResponse(suggestedFilename: String?) {
+    func captureLastResponse(suggestedFilename: String?, previewMetadata: ArtifactMetadata) {
         Task {
             captureProgress = .started
             do {
                 captureProgress = .converting
-                let markdown = try await captureLastResponseAsString()
-
+                let markdown = try await captureResponseMarkdown()
                 captureProgress = .saving
-                let filename = suggestedFilename?.isEmpty == false ? suggestedFilename! :
-                    defaultArtifactFilename()
-                await saveArtifact(markdown: markdown, filename: filename)
-            } catch {
-                captureProgress = .failed(error: error.localizedDescription)
-
-                // Auto-dismiss error state after 3 seconds
+                let filename = suggestedFilename?.isEmpty == false
+                    ? suggestedFilename!
+                    : defaultArtifactFilename()
+                await saveArtifact(markdown: markdown, metadata: previewMetadata, filename: filename)
+            } catch AppIntentError.stillStreaming {
+                // Streaming is transient — no log entry, no "Open Log" button
+                captureProgress = .streaming
                 try? await Task.sleep(for: .seconds(3))
                 self.captureProgress = nil
+            } catch {
+                ArtifactLogger.logError(error)
+                captureProgress = .failed(error: error.localizedDescription)
+                // No auto-dismiss — persistent banner, dismissed by user via ×
             }
         }
     }
 
-    func captureLastResponseAsString() async throws -> String {
+    /// Extracts the last Gemini response as Markdown.
+    /// Runs HTML extraction on @MainActor (evaluateJavaScript), then converts
+    /// HTML→Markdown on a background task. Does not fetch metadata.
+    func captureResponseMarkdown() async throws -> String {
         try await waitForPageReady(timeout: 10)
 
-        // Step 1: Extract raw HTML from the response element (<100ms, unblocks WebView)
-        let script = UserScripts.createCaptureScript(lastResponseSelector: GeminiSelectors.shared.lastResponseSelector)
+        let script = UserScripts.createCaptureScript(
+            lastResponseSelector: GeminiSelectors.shared.lastResponseSelector
+        )
         let htmlString: String = try await withCheckedThrowingContinuation { continuation in
             webViewModel.wkWebView.evaluateJavaScript(script) { result, error in
                 if let error = error {
@@ -264,74 +271,100 @@ class AppCoordinator {
             }
         }
 
-        // Step 2: Convert HTML to Markdown in background (100-500ms, off main thread)
-        let markdown = await Task(priority: .userInitiated) {
+        return await Task(priority: .userInitiated) {
             HTMLToMarkdown.convert(htmlString)
         }.value
-
-        return markdown
     }
 
-    func saveArtifact(markdown: String, filename: String) async {
-        do {
-            let savedFilename = try await performFileIO(markdown: markdown, filename: filename)
-            captureProgress = .completed(filename: savedFilename)
+    /// Fetches conversation metadata from the DOM. Never throws.
+    /// Returns partial metadata (Swift-side fields only) if the page is not ready
+    /// or the JS extraction fails.
+    func fetchMetadataPreview() async -> ArtifactMetadata {
+        var metadata = ArtifactMetadata.empty()
+        guard webViewModel.isPageReady else { return metadata }
 
-            // Auto-dismiss success state after 2 seconds
-            try await Task.sleep(for: .seconds(2))
-            self.captureProgress = nil
-        } catch {
-            captureProgress = .failed(error: error.localizedDescription)
+        let script = UserScripts.createMetadataScript()
+        return await withCheckedContinuation { continuation in
+            webViewModel.wkWebView.evaluateJavaScript(script) { result, _ in
+                guard let jsonString = result as? String,
+                      !jsonString.isEmpty,
+                      let data = jsonString.data(using: .utf8),
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    continuation.resume(returning: metadata)
+                    return
+                }
 
-            // Auto-dismiss error state after 3 seconds
-            try? await Task.sleep(for: .seconds(3))
-            self.captureProgress = nil
+                metadata.conversationUrl = json["conversation_url"] as? String
+                metadata.conversationId = json["conversation_id"] as? String
+                metadata.conversationTitle = json["conversation_title"] as? String
+                metadata.responseIndex = json["response_index"] as? Int
+                metadata.geminiModel = json["gemini_model"] as? String
+                metadata.request = json["request"] as? String
+                metadata.attachments = json["attachments"] as? [String] ?? []
+                metadata.webkitVersion = json["webkit_version"] as? String
+                metadata.jscVersion = json["jsc_version"] as? String
+
+                continuation.resume(returning: metadata)
+            }
         }
     }
 
-    nonisolated private func performFileIO(markdown: String, filename: String) async throws -> String {
+    func saveArtifact(markdown: String, metadata: ArtifactMetadata, filename: String) async {
+        do {
+            let savedFilename = try await performFileIO(
+                markdown: markdown, metadata: metadata, filename: filename
+            )
+            captureProgress = .completed(filename: savedFilename)
+            try await Task.sleep(for: .seconds(2))
+            self.captureProgress = nil
+        } catch {
+            ArtifactLogger.logError(error, context: [
+                "filename_attempted": filename,
+                "conversation_url": metadata.conversationUrl ?? ""
+            ])
+            captureProgress = .failed(error: error.localizedDescription)
+            // No auto-dismiss — persistent banner, dismissed by user via ×
+        }
+    }
+
+    nonisolated private func performFileIO(
+        markdown: String,
+        metadata: ArtifactMetadata,
+        filename: String
+    ) async throws -> String {
         return try await Task.detached(priority: .userInitiated) {
+            let content = metadata.toYAMLFrontmatter() + markdown
             let bookmarkStore = BookmarkStore()
 
-            let finalURL = try bookmarkStore.withBookmarkedURL(for: .artifactsDirectoryBookmark) { dirURL in
-                var url = dirURL.appendingPathComponent(filename, isDirectory: false)
-                var counter = 1
-                let maxRetries = 100
-
-                while FileManager.default.fileExists(atPath: url.path) && counter < maxRetries {
-                    let stem = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
-                    var ext = URL(fileURLWithPath: filename).pathExtension
-                    if ext.isEmpty {
-                        ext = "md"
-                    }
-                    let newName = "\(stem)-\(counter).\(ext)"
-                    url = dirURL.appendingPathComponent(newName, isDirectory: false)
-                    counter += 1
-                }
-
-                if counter >= maxRetries {
-                    throw AppIntentError.fileCollisionLimitExceeded
-                }
-
-                // Unconditionally prepend YAML header
-                let iso8601 = ISO8601DateFormatter().string(from: Date())
-                let header = "---\ncaptured_at: \(iso8601)\nsource: gemini.google.com\n---\n\n"
-                let content = header + markdown
-
+            // Priority 1: user-configured bookmark directory
+            if let savedFilename = try bookmarkStore.withBookmarkedURL(
+                for: .artifactsDirectoryBookmark
+            ) { dirURL in
+                let url = try AppCoordinator.resolveUniqueURL(in: dirURL, filename: filename)
                 try content.write(to: url, atomically: true, encoding: .utf8)
-                return url
+                return url.lastPathComponent
+            } {
+                return savedFilename
             }
 
-            guard let url = finalURL else {
-                throw AppIntentError.directoryUnavailable
-            }
-
+            // Priority 2: ~/Downloads/Artifacts (entitlement-based, no bookmark needed)
+            let downloadsArtifacts = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("Downloads/Artifacts", isDirectory: true)
+            try FileManager.default.createDirectory(
+                at: downloadsArtifacts, withIntermediateDirectories: true
+            )
+            let url = try AppCoordinator.resolveUniqueURL(in: downloadsArtifacts, filename: filename)
+            try content.write(to: url, atomically: true, encoding: .utf8)
             return url.lastPathComponent
         }.value
     }
 
     func dismissInjectionBanner() {
         injectionBannerMessage = nil
+    }
+
+    func dismissCaptureProgress() {
+        captureProgress = nil
     }
 
     func waitForPageReady(timeout: TimeInterval) async throws {
@@ -359,6 +392,27 @@ class AppCoordinator {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd-HHmmss"
         return "Gemini-\(formatter.string(from: Date())).md"
+    }
+
+    /// Returns a unique file URL inside dirURL by appending -1, -2, … suffixes until no collision.
+    nonisolated private static func resolveUniqueURL(in dirURL: URL, filename: String) throws -> URL {
+        var url = dirURL.appendingPathComponent(filename, isDirectory: false)
+        var counter = 1
+        let maxRetries = 100
+
+        while FileManager.default.fileExists(atPath: url.path) && counter < maxRetries {
+            let stem = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
+            var ext = URL(fileURLWithPath: filename).pathExtension
+            if ext.isEmpty { ext = "md" }
+            url = dirURL.appendingPathComponent("\(stem)-\(counter).\(ext)", isDirectory: false)
+            counter += 1
+        }
+
+        if counter >= maxRetries {
+            throw AppIntentError.fileCollisionLimitExceeded
+        }
+
+        return url
     }
 
 }
