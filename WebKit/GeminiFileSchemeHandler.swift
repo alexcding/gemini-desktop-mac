@@ -43,7 +43,7 @@ final class GeminiFileSchemeHandler: NSObject, WKURLSchemeHandler {
 
     func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
         let taskId = ObjectIdentifier(urlSchemeTask)
-        lock.withLock { activeTasks.insert(taskId) }
+        lock.withLock { _ = activeTasks.insert(taskId) }
 
         guard let url = urlSchemeTask.request.url,
               let uuid = url.host else {
@@ -88,7 +88,7 @@ final class GeminiFileSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {
-        lock.withLock { activeTasks.remove(ObjectIdentifier(urlSchemeTask)) }
+        lock.withLock { _ = activeTasks.remove(ObjectIdentifier(urlSchemeTask)) }
     }
 
     // MARK: - Private
