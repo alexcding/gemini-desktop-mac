@@ -123,16 +123,6 @@ struct GeminiWebView: NSViewRepresentable {
             decisionHandler(origin.host.contains(GeminiWebView.Constants.trustedHost) ? .grant : .prompt)
         }
 
-        nonisolated func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping @Sendable ([URL]?) -> Void) {
-            let panel = NSOpenPanel()
-            panel.allowsMultipleSelection = parameters.allowsMultipleSelection
-            panel.canChooseDirectories = parameters.allowsDirectories
-            panel.canChooseFiles = true
-            panel.begin { [completionHandler] response in
-                completionHandler(response == .OK ? panel.urls : nil)
-            }
-        }
-
         private func isExternalURL(_ url: URL) -> Bool {
             guard let host = url.host?.lowercased() else { return false }
             // Only Gemini-related domains stay in the app
