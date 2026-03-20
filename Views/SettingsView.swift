@@ -165,6 +165,8 @@ struct SettingsView: View {
         }
         if let url = bookmarkStore.resolveBookmark(for: .artifactsDirectoryBookmark) {
             artifactsDirLabel = url.lastPathComponent
+        } else {
+            artifactsDirLabel = "Downloads/Artifacts"
         }
     }
 

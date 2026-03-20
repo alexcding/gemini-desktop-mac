@@ -13,12 +13,13 @@ import Observation
 @MainActor
 @Observable
 class AppCoordinator {
-    enum CaptureProgress {
+    enum CaptureProgress: Equatable {
         case started
         case converting
         case saving
         case completed(filename: String)
-        case failed(error: String)
+        case failed(error: String)      // persistent banner, shows "Open Log"
+        case streaming                  // transient, auto-dismisses after 3s
     }
 
     private var chatBar: ChatBarPanel?

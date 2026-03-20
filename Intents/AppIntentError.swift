@@ -28,7 +28,7 @@ enum AppIntentError: LocalizedError {
         case .stillStreaming:
             return "Gemini is still generating a response. Wait for it to finish before capturing."
         case .directoryUnavailable:
-            return "The artifacts directory is not accessible."
+            return "Could not access or create the artifacts directory. Choose a folder in Settings → Prompts & Artifacts."
         case .promptNotFound:
             return "The selected prompt was not found."
         case .fileCollisionLimitExceeded:

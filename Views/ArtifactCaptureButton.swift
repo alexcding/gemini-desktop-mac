@@ -41,7 +41,7 @@ private struct ProgressIndicator: View {
     var body: some View {
         HStack(spacing: 8) {
             switch progress {
-            case .started, .converting, .saving:
+            case .started, .converting, .saving, .streaming:
                 ProgressView()
                     .scaleEffect(0.75)
             case .completed, .failed, nil:
@@ -69,6 +69,8 @@ private struct ProgressIndicator: View {
             return "Saved: \(filename)"
         case .failed(let error):
             return "Error: \(error)"
+        case .streaming:
+            return "Still streaming…"
         case nil:
             return ""
         }
