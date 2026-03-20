@@ -21,6 +21,7 @@ enum UserDefaultsKeys: String {
     case promptsDirectoryBookmark
     case artifactsDirectoryBookmark
     case promptInjectionMode   // "copy" | "inject"
+    case debugModeEnabled
 }
 
 enum AppTheme: String, CaseIterable {
