@@ -20,27 +20,29 @@ struct CaptureLastArtifactIntent: AppIntent {
             throw AppIntentError.notAuthenticated
         }
 
-        // Check if page is ready (access MainActor property)
         let isReady = await MainActor.run { coordinator.webViewModel.isPageReady }
         if !isReady {
             throw AppIntentError.notAuthenticated
         }
 
-        // Check if still streaming
-        let isStreaming = await coordinator.webViewModel.isStreamingResponse()
-        if isStreaming {
-            throw AppIntentError.stillStreaming
-        }
+        // Fetch metadata and response in sequence on the main actor
+        let metadata = await coordinator.fetchMetadataPreview()
+        let markdownContent = try await coordinator.captureResponseMarkdown()
 
-        // Capture the response asynchronously
-        let markdownContent = try await coordinator.captureLastResponseAsString()
         if markdownContent.isEmpty {
             throw AppIntentError.noResponseAvailable
         }
 
-        // Save as artifact on main thread
-        await coordinator.saveArtifact(markdown: markdownContent, filename: filename)
+        let artifactFilename = filename.isEmpty
+            ? await coordinator.defaultArtifactFilename()
+            : (filename.hasSuffix(".md") ? filename : filename + ".md")
 
-        return .result(dialog: "Response captured as '\(filename).md'")
+        await coordinator.saveArtifact(
+            markdown: markdownContent,
+            metadata: metadata,
+            filename: artifactFilename
+        )
+
+        return .result(dialog: "Response captured as '\(artifactFilename)'")
     }
 }

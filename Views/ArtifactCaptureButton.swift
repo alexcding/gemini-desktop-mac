@@ -92,9 +92,9 @@ private struct FilenameInputSheet: View {
             // Use asyncAfter to let AppKit complete its focus-handling cycle before
             // setting the selection range. Without the delay, AppKit overwrites it.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                if let editor = NSApp.keyWindow?.firstResponder as? NSText {
+                if let textView = NSApp.keyWindow?.firstResponder as? NSTextView {
                     let stem = (initialFilename as NSString).deletingPathExtension
-                    editor.setSelectedRange(NSRange(location: 0, length: (stem as NSString).length))
+                    textView.setSelectedRange(NSRange(location: 0, length: (stem as NSString).length))
                 }
             }
         }
