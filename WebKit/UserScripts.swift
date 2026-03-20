@@ -19,6 +19,9 @@ enum UserScripts {
     /// Message handler name for file input clicked notification
     static let fileInputClickedHandler = "fileInputClicked"
 
+    /// Message handler name for debug network payload capture
+    static let debugNetworkCaptureHandler = "debugNetworkCapture"
+
     /// Creates all user scripts to be injected into the WebView
     nonisolated static func createAllScripts() -> [WKUserScript] {
         var scripts: [WKUserScript] = [
@@ -476,6 +479,108 @@ enum UserScripts {
 
             const responseEl = document.querySelector('\(lastResponseSelector)');
             return responseEl ? responseEl.innerHTML : '';
+        })();
+        """
+    }
+
+    // MARK: - Debug Capture Scripts
+
+    /// DOM capture: selector probe + all data-test-id elements + structural data-ved/jsaction nodes.
+    /// selectorJSON: JSON string of { fieldName: cssSelector } pairs built by AppCoordinator.
+    nonisolated static func createDOMCaptureScript(selectorJSON: String) -> String {
+        """
+        (function() {
+            try {
+                var selectors = \(selectorJSON);
+
+                // 1. Selector probe — hit/miss + element details for each field
+                var selectorProbe = Object.keys(selectors).map(function(field) {
+                    var sel = selectors[field];
+                    var el = document.querySelector(sel);
+                    return {
+                        field: field,
+                        selector: sel,
+                        found: el !== null,
+                        tag: el ? el.tagName : null,
+                        classes: el ? (el.className || '').toString().slice(0, 100) : null,
+                        dataTestId: el ? el.getAttribute('data-test-id') : null,
+                        ariaLabel: el ? el.getAttribute('aria-label') : null,
+                        textSnippet: el ? el.textContent.trim().slice(0, 80) : null
+                    };
+                });
+
+                // 2. All visible data-test-id elements (primary lookup table for replacements)
+                var dataTestIds = Array.from(document.querySelectorAll('[data-test-id]'))
+                    .filter(function(el) { return el.offsetParent !== null; })
+                    .map(function(el) {
+                        return {
+                            tag: el.tagName,
+                            dataTestId: el.getAttribute('data-test-id'),
+                            ariaLabel: el.getAttribute('aria-label'),
+                            text: el.textContent.trim().slice(0, 60)
+                        };
+                    });
+
+                // 3. Structural Wiz elements, capped at 200
+                var structural = Array.from(document.querySelectorAll('[data-ved], [jsaction]'))
+                    .slice(0, 200)
+                    .map(function(el) {
+                        return {
+                            tag: el.tagName,
+                            classes: (el.className || '').toString().slice(0, 80),
+                            dataVed: el.getAttribute('data-ved'),
+                            jsaction: (el.getAttribute('jsaction') || '').slice(0, 100),
+                            jscontroller: el.getAttribute('jscontroller')
+                        };
+                    });
+
+                return JSON.stringify({
+                    selectorProbe: selectorProbe,
+                    dataTestIds: dataTestIds,
+                    structural: structural
+                });
+            } catch(e) {
+                return JSON.stringify({ error: e.message });
+            }
+        })();
+        """
+    }
+
+    /// WIZ state capture: serializes window.WIZ_global_data.
+    nonisolated static func createWIZCaptureScript() -> String {
+        """
+        (function() {
+            try {
+                return JSON.stringify(window.WIZ_global_data || {});
+            } catch(e) {
+                return JSON.stringify({ error: e.message });
+            }
+        })();
+        """
+    }
+
+    /// Fetch interceptor — injected at document start when debug mode is on.
+    /// Passively buffers batchexecute payloads and posts them to the
+    /// 'debugNetworkCapture' WKScriptMessageHandler.
+    nonisolated static func createFetchInterceptorScript() -> String {
+        """
+        (function() {
+            if (window.__GeminiDesktopDebugIntercepted) return;
+            window.__GeminiDesktopDebugIntercepted = true;
+            var originalFetch = window.fetch;
+            window.fetch = function() {
+                var url = arguments[0];
+                var options = arguments[1];
+                if (url && url.toString().includes('/batchexecute') && options && options.body) {
+                    try {
+                        window.webkit.messageHandlers.\(debugNetworkCaptureHandler).postMessage({
+                            url: url.toString(),
+                            payload: options.body.toString().slice(0, 8000)
+                        });
+                    } catch(e) {}
+                }
+                return originalFetch.apply(this, arguments);
+            };
         })();
         """
     }
