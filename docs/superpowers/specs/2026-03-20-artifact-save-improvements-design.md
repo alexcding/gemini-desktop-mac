@@ -468,7 +468,7 @@ The `ArtifactMetadata` struct and the `metadataRows` computed property are the t
 | Create | `Artifacts/ArtifactMetadata.swift` | Value type + YAML serialization |
 | Create | `Utils/ArtifactLogger.swift` | Structured error logging (container Logs dir + os.log) |
 | Modify | `WebKit/UserScripts.swift` | Add `createMetadataScript()` |
-| Modify | `Coordinators/AppCoordinator.swift` | `fetchMetadataPreview()`, `captureResponseHTML()`, updated `captureLastResponse`/`saveArtifact`/`performFileIO` signatures, `dismissCaptureProgress()`, default dir logic, remove error auto-dismiss |
+| Modify | `Coordinators/AppCoordinator.swift` | `fetchMetadataPreview()`, `captureResponseMarkdown()`, updated `captureLastResponse`/`saveArtifact`/`performFileIO` signatures, `dismissCaptureProgress()`, `resolveUniqueURL()` helper, default dir logic, remove error auto-dismiss |
 | Modify | `Views/ArtifactCaptureButton.swift` | Pre-fetch on button tap, `prefetchedMetadata` state, stem-only selection (50ms delay + NSText cast), metadata disclosure group with `metadataRows` |
 | Modify | `Views/MainWindowView.swift` | Single overlay VStack for both banners, capture feedback banner, × calls `dismissCaptureProgress()` |
 | Modify | `Intents/AppIntentError.swift` | Update `directoryUnavailable` errorDescription to mention Settings path |
