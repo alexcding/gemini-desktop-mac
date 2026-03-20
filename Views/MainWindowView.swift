@@ -63,23 +63,33 @@ struct MainWindowView: View {
                 }
             }
             .overlay(alignment: .top) {
-                if let msg = coordinator.injectionBannerMessage {
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                        Text(msg)
-                        Spacer()
-                        Button(action: { coordinator.dismissInjectionBanner() }) {
-                            Image(systemName: "xmark")
+                VStack(spacing: 8) {
+                    // Injection banner (existing)
+                    if let msg = coordinator.injectionBannerMessage {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                            Text(msg)
+                            Spacer()
+                            Button(action: { coordinator.dismissInjectionBanner() }) {
+                                Image(systemName: "xmark")
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
+                        .padding(10)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
-                    .padding(10)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                    .padding([.horizontal, .top], 12)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+
+                    // Capture progress / feedback banner (new)
+                    if let progress = coordinator.captureProgress {
+                        captureBanner(progress: progress)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
                 }
+                .padding([.horizontal, .top], 12)
             }
             .animation(.easeInOut(duration: 0.2), value: coordinator.injectionBannerMessage)
+            .animation(.easeInOut(duration: 0.2), value: coordinator.captureProgress)
     }
 
     private var mainWindows: [NSWindow] {
@@ -106,6 +116,78 @@ struct MainWindowView: View {
     private func minimizeToPrompt() {
         mainWindows.first?.orderOut(nil)
         coordinator.showChatBar()
+    }
+
+    @ViewBuilder
+    private func captureBanner(progress: AppCoordinator.CaptureProgress) -> some View {
+        switch progress {
+        case .started, .converting, .saving:
+            HStack(spacing: 8) {
+                ProgressView()
+                    .scaleEffect(0.75)
+                Text(progressLabel(progress))
+                    .font(.callout)
+            }
+            .padding(10)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+
+        case .completed(let filename):
+            HStack {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                Text("Saved: \(filename)")
+                    .font(.callout)
+            }
+            .padding(10)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+
+        case .streaming:
+            HStack {
+                Image(systemName: "waveform")
+                Text("Gemini is still streaming — wait for the response to finish.")
+                    .font(.callout)
+            }
+            .padding(10)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+
+        case .failed(let error):
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(error)
+                        .font(.callout)
+                    Spacer()
+                    Button {
+                        coordinator.dismissCaptureProgress()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .buttonStyle(.plain)
+                }
+                HStack {
+                    Button("Open Log") {
+                        if let url = ArtifactLogger.logFileURL {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+                    .disabled(ArtifactLogger.logFileURL == nil)
+                }
+            }
+            .padding(10)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    private func progressLabel(_ progress: AppCoordinator.CaptureProgress) -> String {
+        switch progress {
+        case .started: return "Starting…"
+        case .converting: return "Converting…"
+        case .saving: return "Saving…"
+        default: return ""
+        }
     }
 }
 
