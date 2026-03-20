@@ -72,6 +72,57 @@ enum UserScripts {
         )
     }
 
+    /// Creates a script that extracts conversation metadata from the Gemini DOM.
+    /// Returns a JSON string. Wraps everything in try/catch — returns "{}" on any exception.
+    /// All selectors are best-effort; missing fields are simply absent from the JSON.
+    nonisolated static func createMetadataScript() -> String {
+        """
+        (function() {
+            try {
+                var url = window.location.href;
+                var idMatch = url.match(/\\/app\\/([a-zA-Z0-9_-]+)/);
+                var conversationId = idMatch ? idMatch[1] : null;
+
+                var responseIndex = document.querySelectorAll('response-container').length;
+
+                var modelEl = document.querySelector('[data-test-id="model-switcher-button"]')
+                    || document.querySelector('.model-switcher-button')
+                    || document.querySelector('[jsname][aria-label*="Gemini"]');
+                var geminiModel = modelEl ? modelEl.textContent.trim() : null;
+
+                var userTurns = document.querySelectorAll('user-query .query-text');
+                var request = null;
+                if (userTurns.length > 0) {
+                    request = userTurns[userTurns.length - 1].textContent.trim();
+                }
+
+                var attachmentEls = document.querySelectorAll('.attachment-chip .attachment-name');
+                var attachments = Array.from(attachmentEls)
+                    .map(function(el) { return el.textContent.trim(); })
+                    .filter(Boolean);
+
+                var webkitVersion = null;
+                var uaMatch = navigator.userAgent.match(/AppleWebKit\\/([\\d.]+)/);
+                if (uaMatch) { webkitVersion = uaMatch[1]; }
+
+                return JSON.stringify({
+                    conversation_url: url,
+                    conversation_id: conversationId,
+                    conversation_title: document.title,
+                    response_index: responseIndex,
+                    gemini_model: geminiModel,
+                    request: request,
+                    attachments: attachments,
+                    webkit_version: webkitVersion,
+                    jsc_version: webkitVersion
+                });
+            } catch (e) {
+                return '{}';
+            }
+        })();
+        """
+    }
+
     // MARK: - Script Sources
 
     /// JavaScript to bridge console.log to native Swift via WKScriptMessageHandler
