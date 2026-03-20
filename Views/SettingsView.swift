@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var promptsDirLabel: String = ""
     @State private var artifactsDirLabel: String = ""
+    @State private var selectorSource: String = ""
 
     var body: some View {
         Form {
@@ -135,6 +136,19 @@ struct SettingsView: View {
                     .pickerStyle(.segmented)
                     .frame(width: 260)
                 }
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Selectors")
+                        Text(selectorSource.isEmpty ? "Default (bundled)" : selectorSource)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Reveal in Finder") {
+                        revealSelectorsDirectory()
+                    }
+                }
             }
         }
         .formStyle(.grouped)
@@ -168,6 +182,7 @@ struct SettingsView: View {
         } else {
             artifactsDirLabel = "Downloads/Artifacts"
         }
+        selectorSource = GeminiSelectors.isUsingUserFile ? "Custom (user file)" : "Default (bundled)"
     }
 
     private func chooseDirectory(label: Binding<String>, key: UserDefaultsKeys) {
@@ -194,6 +209,15 @@ struct SettingsView: View {
                 // Silently fail if bookmark save fails
             }
         }
+    }
+
+    private func revealSelectorsDirectory() {
+        guard let appSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        ).first else { return }
+        let dir = appSupport.appendingPathComponent("GeminiDesktop")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(dir)
     }
 }
 
