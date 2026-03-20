@@ -24,6 +24,7 @@ struct GeminiDesktopApp: App {
 
     @AppStorage(UserDefaultsKeys.useCustomToolbarColor.rawValue) private var useCustomToolbarColor: Bool = false
     @AppStorage(UserDefaultsKeys.toolbarColorHex.rawValue) private var toolbarColorHex: String = "#34A853"
+    @AppStorage(UserDefaultsKeys.debugModeEnabled.rawValue) private var debugModeEnabled: Bool = false
 
     var body: some Scene {
         WindowGroup(AppCoordinator.Constants.mainWindowTitle, id: Constants.mainWindowID) {
@@ -102,6 +103,26 @@ struct GeminiDesktopApp: App {
                     Label("Actual Size", systemImage: "1.magnifyingglass")
                 }
                 .keyboardShortcut("0", modifiers: .command)
+            }
+
+            if debugModeEnabled {
+                CommandMenu("Debug") {
+                    Button("Capture All") {
+                        Task { await coordinator.captureDebugAll() }
+                    }
+
+                    Divider()
+
+                    Button("Capture DOM") {
+                        Task { await coordinator.captureDebugDOMOnly() }
+                    }
+                    Button("Capture WIZ State") {
+                        Task { await coordinator.captureDebugWIZOnly() }
+                    }
+                    Button("Capture Network") {
+                        Task { await coordinator.captureDebugNetworkOnly() }
+                    }
+                }
             }
         }
 
