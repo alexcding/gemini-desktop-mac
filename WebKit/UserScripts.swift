@@ -23,7 +23,8 @@ enum UserScripts {
     nonisolated static func createAllScripts() -> [WKUserScript] {
         var scripts: [WKUserScript] = [
             createConversationObserverScript(),
-            createIMEFixScript()
+            createIMEFixScript(),
+            createFilePickerScript()
         ]
 
         #if DEBUG
@@ -58,6 +59,16 @@ enum UserScripts {
             source: imeFixSource,
             injectionTime: .atDocumentEnd,
             forMainFrameOnly: false
+        )
+    }
+
+    /// Creates a script that intercepts file input clicks and routes them through
+    /// the native file picker bridge.
+    nonisolated private static func createFilePickerScript() -> WKUserScript {
+        WKUserScript(
+            source: filePickerSource,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
         )
     }
 
@@ -282,6 +293,67 @@ enum UserScripts {
                 subtree: true
             });
         }
+    })();
+    """
+
+    /// JavaScript that intercepts hidden file input clicks and routes them to
+    /// the native NSOpenPanel via WKScriptMessageHandler.
+    ///
+    /// Flow: input.click() intercept → postMessage → Swift NSOpenPanel
+    ///   → evaluateJavaScript callback → fetch(gemini-file://) → DataTransfer → input.files
+    private static let filePickerSource = """
+    (function() {
+        window.__GeminiDesktop = window.__GeminiDesktop || {};
+
+        var pendingFileInput = null;
+        var pendingNonce = null;
+
+        // Intercept programmatic clicks on hidden file inputs.
+        // WKWebView drops these silently (gesture token expired by the time
+        // Gemini's async code calls click()). We route them native instead.
+        var origClick = HTMLInputElement.prototype.click;
+        HTMLInputElement.prototype.click = function() {
+            if (this.type === 'file') {
+                pendingFileInput = this;
+                pendingNonce = Math.random().toString(36).slice(2);
+                window.webkit.messageHandlers.\(fileInputClickedHandler).postMessage({
+                    multiple: this.multiple,
+                    accept: this.accept || '',
+                    nonce: pendingNonce
+                });
+            } else {
+                origClick.call(this);
+            }
+        };
+
+        // Called by Swift after NSOpenPanel completes.
+        // urls: array of gemini-file:// strings, or empty on cancel.
+        window.__GeminiDesktop.filesSelected = function(nonce, urls) {
+            if (nonce !== pendingNonce) { return; } // stale response from a previous picker
+            var input = pendingFileInput;
+            pendingFileInput = null;
+            pendingNonce = null;
+            if (!input || !urls.length) { return; }
+
+            Promise.all(urls.map(function(url) {
+                return fetch(url).then(function(r) {
+                    var type = r.headers.get('Content-Type') || 'application/octet-stream';
+                    var rawName = new URL(url).pathname.split('/').pop() || 'file';
+                    var name = decodeURIComponent(rawName);
+                    return r.arrayBuffer().then(function(buf) {
+                        return new File([buf], name, { type: type });
+                    });
+                });
+            })).then(function(files) {
+                var dt = new DataTransfer();
+                files.forEach(function(f) { dt.items.add(f); });
+                input.files = dt.files; // supported in WebKit via DataTransfer
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            }).catch(function(err) {
+                console.error('[GeminiDesktop] File picker error:', err);
+            });
+        };
     })();
     """
 
