@@ -5,6 +5,34 @@
 
 import Foundation
 
+/// Represents a single JS expression string or an ordered array of fallback expressions.
+/// Callers always use `.expressions` which normalizes both cases to `[String]`.
+enum MetadataExpression: Codable {
+    case single(String)
+    case multiple([String])
+
+    var expressions: [String] {
+        switch self {
+        case .single(let s): return [s]
+        case .multiple(let arr): return arr
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if let s = try? c.decode(String.self) { self = .single(s); return }
+        self = .multiple(try c.decode([String].self))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        switch self {
+        case .single(let s): try c.encode(s)
+        case .multiple(let arr): try c.encode(arr)
+        }
+    }
+}
+
 struct GeminiSelectors: Codable {
 
     // MARK: - Existing fields (unchanged)
@@ -26,6 +54,10 @@ struct GeminiSelectors: Codable {
     let userQuerySelector: String
     let attachmentSelector: String
     let streamingIndicatorSelector: String
+
+    // MARK: - Expression-driven metadata fields
+
+    var metadata: [String: MetadataExpression] = [:]
 
     // MARK: - Loading
 
@@ -77,6 +109,27 @@ struct GeminiSelectors: Codable {
         modelSelectorFallback: "[data-test-id=\"logo-pill-label-container\"]",
         userQuerySelector: "user-query .query-text-line",
         attachmentSelector: ".attachment-chip .attachment-name",
-        streamingIndicatorSelector: "button.send-button.stop"
+        streamingIndicatorSelector: "button.send-button.stop",
+        metadata: [
+            "conversation_url": .single("window.location.href"),
+            "conversation_id": .single("window.location.href.match(/\\/app\\/([a-zA-Z0-9_-]+)/)?.[1] ?? null"),
+            "conversation_title": .multiple([
+                "document.querySelector('a.conversation.selected')?.textContent?.trim() || null",
+                "document.querySelector('[data-test-id=\"conversation-title\"]')?.textContent?.trim() || null"
+            ]),
+            "response_index": .single("document.querySelectorAll('response-container').length"),
+            "gemini_model": .multiple([
+                "document.querySelector('[data-test-id=\"bard-mode-menu-button\"]')?.textContent?.trim() || null",
+                "document.querySelector('[data-test-id=\"logo-pill-label-container\"]')?.textContent?.trim() || null"
+            ]),
+            "gemini_tier": .multiple([
+                "(window.WIZ_global_data?.['AfY8Hf'] === true) ? 'advanced' : (window.WIZ_global_data?.['AfY8Hf'] === false ? 'standard' : null)",
+                "null"
+            ]),
+            "request": .single("Array.from(document.querySelectorAll('user-query .query-text-line')).at(-1)?.textContent?.trim() || null"),
+            "attachments": .single("Array.from(document.querySelectorAll('.attachment-chip .attachment-name')).map(el => el.textContent.trim()).filter(Boolean)"),
+            "webkit_version": .single("navigator.userAgent.match(/AppleWebKit\\/([\\d.]+)/)?.[1] ?? null"),
+            "jsc_version": .single("navigator.userAgent.match(/AppleWebKit\\/([\\d.]+)/)?.[1] ?? null")
+        ]
     )
 }
