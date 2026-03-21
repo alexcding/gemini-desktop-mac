@@ -134,6 +134,52 @@ enum UserScripts {
         return lines.joined(separator: "\n")
     }
 
+    /// Generates the metadataProbe JS — one IIFE per metadata field.
+    /// Uses eval (safe: evaluateJavaScript bypasses page CSP; expressions come from GeminiSelectors, not page).
+    /// Array-valued fields (attachments) use JSON.stringify for the value.
+    nonisolated private static func metadataProbeBlocks() -> String {
+        let entries = GeminiSelectors.shared.metadata
+        var blocks: [String] = []
+
+        for (key, expr) in entries {
+            let exprs = expr.expressions
+            let isArrayField = key == "attachments"
+            // Build JS array literal of expression strings, escaping backslashes and double quotes
+            let jsExprs = exprs.map { e -> String in
+                let escaped = e
+                    .replacingOccurrences(of: "\\", with: "\\\\")
+                    .replacingOccurrences(of: "\"", with: "\\\"")
+                return "\"\(escaped)\""
+            }.joined(separator: ", ")
+
+            let valueExpr = isArrayField
+                ? "JSON.stringify(_v).slice(0, 120)"
+                : "String(_v).slice(0, 120)"
+            let nullCheck = isArrayField
+                ? "_v !== null && _v !== undefined"
+                : "_v !== null && _v !== undefined && _v !== ''"
+
+            blocks.append("""
+            (function() {
+                var field = "\(key)";
+                var exprs = [\(jsExprs)];
+                for (var i = 0; i < exprs.length; i++) {
+                    try {
+                        var _v = eval(exprs[i]);
+                        if (\(nullCheck)) {
+                            metadataProbe.push({ field: field, matchedIndex: i, value: \(valueExpr) });
+                            return;
+                        }
+                    } catch(e) {}
+                }
+                metadataProbe.push({ field: field, matchedIndex: null, value: null });
+            })();
+            """)
+        }
+
+        return blocks.joined(separator: "\n")
+    }
+
     // MARK: - Script Sources
 
     /// JavaScript to bridge console.log to native Swift via WKScriptMessageHandler
@@ -542,10 +588,15 @@ enum UserScripts {
                         };
                     });
 
+                // 4. Metadata expression probe
+                var metadataProbe = [];
+                \(metadataProbeBlocks())
+
                 return JSON.stringify({
                     selectorProbe: selectorProbe,
                     dataTestIds: dataTestIds,
-                    structural: structural
+                    structural: structural,
+                    metadataProbe: metadataProbe
                 });
             } catch(e) {
                 return JSON.stringify({ error: e.message });
