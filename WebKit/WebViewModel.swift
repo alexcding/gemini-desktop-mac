@@ -160,22 +160,8 @@ class WebViewModel {
         self.wkWebView = webView
         self.filePickerHandler = filePickerHandler
 
-        // Register file picker message handler after WebView exists
-        webView.configuration.userContentController.add(
-            filePickerHandler,
-            name: UserScripts.fileInputClickedHandler
-        )
-
-        self.wkWebView.navigationDelegate = navigationDelegate
-
-        navigationDelegate.onPageReady = { [weak self] in
-            self?.isPageReady = true
-        }
-        navigationDelegate.onNavigationStart = { [weak self] in
-            self?.isPageReady = false
-        }
-
-        // Register fetch interceptor for debug network capture (only when debug mode on at launch)
+        // Initialize debugNetworkHandler before any closure captures self — Swift requires
+        // all stored `let` properties to be set before self can appear in closures.
         let debugModeEnabled = UserDefaults.standard.bool(
             forKey: UserDefaultsKeys.debugModeEnabled.rawValue
         )
@@ -194,6 +180,21 @@ class WebViewModel {
             webView.configuration.userContentController.addUserScript(interceptorScript)
         } else {
             self.debugNetworkHandler = nil
+        }
+
+        // Register file picker message handler after WebView exists
+        webView.configuration.userContentController.add(
+            filePickerHandler,
+            name: UserScripts.fileInputClickedHandler
+        )
+
+        self.wkWebView.navigationDelegate = navigationDelegate
+
+        navigationDelegate.onPageReady = { [weak self] in
+            self?.isPageReady = true
+        }
+        navigationDelegate.onNavigationStart = { [weak self] in
+            self?.isPageReady = false
         }
 
         setupObservers()
