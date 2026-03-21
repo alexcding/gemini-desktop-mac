@@ -40,11 +40,9 @@ struct PromptsMenuButton: View {
         let isDeprecated = file.metadata?.deprecated == true
 
         if let tooltip = file.tooltipContent {
-            Button(action: { handleSelection(file) }) {
-                Text(file.displayTitle)
-                    .foregroundStyle(isDeprecated ? Color.secondary : Color.primary)
-            }
-            .help(tooltip.formatted())
+            Button(file.displayTitle, action: { handleSelection(file) })
+                .foregroundStyle(isDeprecated ? Color.secondary : Color.primary)
+                .help(tooltip.formatted())
         } else {
             Button(file.displayTitle, action: { handleSelection(file) })
                 .foregroundStyle(isDeprecated ? Color.secondary : Color.primary)
