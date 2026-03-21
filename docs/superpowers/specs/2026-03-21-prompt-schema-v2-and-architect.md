@@ -1,4 +1,4 @@
-# Prompt Schema v2 & Prompt Architect — Design Spec
+# Prompt Schema v1 Additions & Prompt Architect — Design Spec
 
 **Goal:** Extend the YAML frontmatter schema with 3 provider-routing fields, introduce a machine-readable body-content schema catalog, and ship a meta prompt architect agent that creates, converts, and maintains prompts to standard via a research → plan → approve → archive → update change control workflow.
 
@@ -86,20 +86,32 @@ A JSON catalog (not an executable validator) that specifies the sections a promp
 
 ### Sections Catalog
 
-| Order | ID | Heading | Tier | Condition |
+| Order | ID | Heading | Tier | Condition (`null` = always) |
 |---|---|---|---|---|
-| 1 | `identity_and_purpose` | `# IDENTITY AND PURPOSE` | required | — |
-| 2 | `context` | `# CONTEXT` | conditional | Model needs domain knowledge not in training |
-| 3 | `instructions` | `# INSTRUCTIONS` | required | — |
-| 4 | `steps` | `# STEPS` | conditional | Task has a defined multi-step sequence |
-| 5 | `constraints` | `# CONSTRAINTS` | conditional | Hard rules or safety gates exist |
-| 6 | `examples` | `# EXAMPLES` | optional | Highest quality multiplier when present |
-| 7 | `uncertainty_handling` | `# UNCERTAINTY HANDLING` | optional | Prevents hallucination on out-of-scope inputs |
-| 8 | `input` | `# INPUT` | optional | Agentic chains with formal input spec |
-| 9 | `output_format` | `# OUTPUT FORMAT` | required | — |
-| — | `scratchpad_split` | `<scratchpad>` + `<output_payload>` | agentic | Prompt feeds downstream agent or orchestrator |
+| 1 | `identity_and_purpose` | `# IDENTITY AND PURPOSE` | required | `null` |
+| 2 | `context` | `# CONTEXT` | conditional | `"Model needs domain knowledge not available in training data"` |
+| 3 | `instructions` | `# INSTRUCTIONS` | required | `null` |
+| 4 | `steps` | `# STEPS` | conditional | `"Task has a defined multi-step sequence or phased workflow"` |
+| 5 | `constraints` | `# CONSTRAINTS` | conditional | `"Hard behavioral rules, safety gates, or prohibited actions exist"` |
+| 6 | `examples` | `# EXAMPLES` | optional | `null` |
+| 7 | `uncertainty_handling` | `# UNCERTAINTY HANDLING` | optional | `null` |
+| 8 | `input` | `# INPUT` | optional | `null` |
+| 9 | `output_format` | `# OUTPUT FORMAT` | required | `null` |
 
-**Ordering rule:** CONTEXT before INSTRUCTIONS when domain knowledge is needed to understand the instructions. OUTPUT FORMAT always last — model reads this closest to where it starts generating.
+**Ordering rule:** CONTEXT always before INSTRUCTIONS when both are present — domain knowledge must be loaded before instructions reference it. OUTPUT FORMAT always last — model reads this closest to where it starts generating.
+
+### Agentic Pattern: Scratchpad Split
+
+`scratchpad_split` is NOT a standalone section with a `#` heading. It is a **content pattern** used inside the `# OUTPUT FORMAT` section when `reasoning_trace: true` in YAML. When active, the OUTPUT FORMAT section body specifies two XML blocks:
+
+```
+<scratchpad> ... </scratchpad>
+<output_payload> ... </output_payload>
+```
+
+The `scratchpad_split` entry in the catalog has `"heading": null` (no Markdown heading — it is XML inline content) and `"tier": "agentic"`. Its presence is signaled by `reasoning_trace: true` in the YAML frontmatter, not by a separate `#` section in the body.
+
+This resolves the apparent conflict with "OUTPUT FORMAT always last" — scratchpad lives *inside* OUTPUT FORMAT, not after it.
 
 ---
 
@@ -165,18 +177,27 @@ The architect follows a mandatory 3-phase change control process. No file change
 
 **Phase 3 — Execute**
 1. Archive: copy current file to `archive/{filename}-v{current_version}.md`
+   - If `version` is missing from YAML, use `v0.0` in the archive filename and warn the user
+   - If that archive path already exists, append `-{YYYY-MM-DD}` to disambiguate before writing
 2. Apply all approved changes
-3. Increment `version` in YAML (patch: 1.0 → 1.1, minor: 1.0 → 2.0 if structure changed significantly)
+3. Increment `version` in YAML using this decision tree:
+   - **Patch** (1.0 → 1.1): wording improvements, adding optional fields (`output_format`, `reasoning_trace`, `interaction_mode`), adding/removing optional sections (`# EXAMPLES`, `# UNCERTAINTY HANDLING`, `# INPUT`)
+   - **Minor** (1.0 → 2.0): adding or removing required/conditional sections (`# IDENTITY AND PURPOSE`, `# INSTRUCTIONS`, `# OUTPUT FORMAT`, `# STEPS`, `# CONTEXT`, `# CONSTRAINTS`), or any change the user explicitly flags as structural
 4. Output the complete updated prompt
-5. Output a **Change Summary**: bulleted list of every change applied
+5. Output a **Change Summary**: bulleted list of every change applied with the rule/standard that justified it
 
 ### Scope Boundaries
 
 The architect does NOT:
 - Change what a prompt does — only how it is expressed
-- Add sections the user did not approve
-- Modify `safety_gates` values without explicit user confirmation
-- Overwrite the archive directory
+- Add sections the user did not approve in Phase 2
+- Modify `safety_gates` values without explicit individual user confirmation
+- Overwrite an existing archive file (always disambiguate first)
+- Auto-populate the 3 new YAML fields (`output_format`, `reasoning_trace`, `interaction_mode`) without including them in the Phase 2 change plan — they are YAML metadata changes and require approval like any other change
+
+### Provider Notes Usage
+
+`anthropic_note` and `google_note` fields in the body content schema are reference data for the architect's Phase 1 Research Report. When the target prompt's `compatible_with` includes Anthropic or Google models, the architect surfaces the relevant provider note as a recommendation. They are not validated or enforced — they are advisory guidance to the architect.
 
 ---
 
