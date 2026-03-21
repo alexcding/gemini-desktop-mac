@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Gemini Desktop Prompt v1",
+  "description": "Schema for Gemini Desktop prompt YAML frontmatter (schema_version: 1). See https://github.com/daveorzach/gemini-desktop-mac for details.",
+  "type": "object",
+  "required": ["schema_version", "name", "version", "role", "summary"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1",
+      "description": "Schema version anchor. Always '1' for this version."
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable prompt name shown in hover tooltip."
+    },
+    "version": {
+      "type": "string",
+      "description": "Prompt version string. Increment when you change the prompt body."
+    },
+    "role": {
+      "type": "string",
+      "description": "Persona this prompt plays (e.g. 'teaching assistant', 'code reviewer')."
+    },
+    "summary": {
+      "type": "string",
+      "description": "One-to-two sentence description. Shown as hover tooltip body."
+    },
+    "last_updated": {
+      "type": "string",
+      "description": "Date string, displayed as-is (e.g. '2026-03-21')."
+    },
+    "author": {
+      "type": "string",
+      "description": "Prompt author. Used for attribution in shared libraries."
+    },
+    "intent": {
+      "type": "string",
+      "description": "One-sentence goal declaration. Prevents drift in agentic chains."
+    },
+    "language": {
+      "type": "string",
+      "description": "Locale the prompt is written in (e.g. 'en-US')."
+    },
+    "deprecated": {
+      "type": "boolean",
+      "description": "When true, the prompt is greyed out in the menu."
+    },
+    "compatible_with": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Models this prompt is tuned for (e.g. ['gemini-thinking', 'claude-opus'])."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Reserved for future filtering and search."
+    },
+    "output_schema": {
+      "type": "string",
+      "description": "Expected output structure for orchestrators (e.g. 'scratchpad → verdict')."
+    },
+    "safety_gates": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Explicit human-in-the-loop checkpoints."
+    },
+    "model_parameters": {
+      "type": "object",
+      "description": "Inference parameter hints for orchestrators.",
+      "properties": {
+        "temperature": { "type": "number" },
+        "top_p":       { "type": "number" },
+        "max_tokens":  { "type": "integer" }
+      },
+      "additionalProperties": true
+    },
+    "license": {
+      "type": "string",
+      "description": "License for shared/public prompt libraries (e.g. 'MIT', 'CC-BY-4.0')."
+    },
+    "input_variables": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Named placeholders the prompt body expects (e.g. ['user_name', 'context'])."
+    }
+  },
+  "additionalProperties": true
+}

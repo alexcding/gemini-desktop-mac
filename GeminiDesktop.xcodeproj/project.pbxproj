@@ -37,6 +37,8 @@
 			membershipExceptions = (
 				AppIcon.icon,
 				Assets.xcassets,
+				"prompt-schema-v1.json",
+				"prompt-template.md",
 			);
 			target = 74CBD8A92EED8FCB00F226E3 /* GeminiDesktop */;
 		};
