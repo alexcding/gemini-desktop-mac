@@ -298,6 +298,7 @@ class AppCoordinator {
                 metadata.conversationTitle = json["conversation_title"] as? String
                 metadata.responseIndex = json["response_index"] as? Int
                 metadata.geminiModel = json["gemini_model"] as? String
+                metadata.geminiTier = json["gemini_tier"] as? String
                 metadata.request = json["request"] as? String
                 metadata.attachments = json["attachments"] as? [String] ?? []
                 metadata.webkitVersion = json["webkit_version"] as? String

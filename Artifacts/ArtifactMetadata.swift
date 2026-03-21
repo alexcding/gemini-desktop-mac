@@ -24,6 +24,7 @@ struct ArtifactMetadata: Sendable {
 
     // Model context — extracted from DOM
     var geminiModel: String?
+    var geminiTier: String?    // "advanced" or "standard", from WIZ_global_data["AfY8Hf"]
 
     // Reproduction — extracted from DOM
     var request: String?
@@ -73,6 +74,9 @@ extension ArtifactMetadata {
         if let geminiModel {
             let escaped = geminiModel.replacingOccurrences(of: "\"", with: "\\\"")
             lines.append("gemini_model: \"\(escaped)\"")
+        }
+        if let geminiTier {
+            lines.append("gemini_tier: \"\(geminiTier)\"")
         }
 
         if let request, !request.isEmpty {
