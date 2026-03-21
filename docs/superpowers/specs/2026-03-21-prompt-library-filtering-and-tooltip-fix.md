@@ -14,7 +14,7 @@
 
 The Prompts directory contains documentation files alongside prompt files. `PromptLibrary.buildTree()` currently includes every `.md` file, so YAML-schema.md, prompt-structure.md, and README.md appear as selectable menu items — which is unintended.
 
-The `.help()` tooltip modifier is applied to prompt menu buttons but never displays. Root cause: SwiftUI does not forward `.help()` to `NSMenuItem.toolTip` when the `Button` uses a custom content label (`Button(action:) { Text() }`). The string-label form (`Button(title, action:)`) does forward correctly.
+The `.help()` tooltip modifier is applied to prompt menu buttons but never displays. Root cause: SwiftUI does not forward `.help()` to `NSMenuItem.toolTip` when the `Button` uses a custom content label (`Button(action:) { Text() }`). The string-label form (`Button(title, action:)`) does forward correctly. This matches the pattern already used by the non-tooltip branch (line 49–50 of `PromptsMenuButton.swift`), which is verified working.
 
 ---
 
@@ -22,25 +22,35 @@ The `.help()` tooltip modifier is applied to prompt menu buttons but never displ
 
 ### Two-level filtering in `PromptLibrary.buildTree()`
 
+Both levels exclude files from **both** `allFiles` and `filesByParent` — hidden files do not appear in the menu or in the Siri/Shortcuts `allFiles` list. Documentation files are not useful as Siri shortcut targets.
+
 **Level 1 — README.md (before file load):**
 
-Skip any `.md` file whose filename (case-insensitive) is `readme.md` before calling `PromptFile.load()`. This avoids unnecessary file I/O for a universally understood doc convention.
+Skip any `.md` file whose filename (case-insensitive) is `readme.md` before calling `PromptFile.load()`. This avoids unnecessary file I/O.
 
 ```swift
 guard url.lastPathComponent.lowercased() != "readme.md" else { continue }
 ```
 
+Place this guard immediately after the `url.pathExtension.lowercased() == "md"` check, before `PromptFile.load(from: url)`.
+
 **Level 2 — `hidden: true` (after file load):**
 
-`PromptFile.load()` calls a new `PromptMetadata.parseHiddenFlag(from:)` static method that parses only the `hidden` key from the YAML frontmatter — independent of required-field validation. Files with `hidden: true` are excluded from the tree regardless of whether the rest of their YAML is valid.
+`PromptFile.load()` calls a new `PromptMetadata.parseHiddenFlag(from:)` static method that parses only the `hidden` key from the YAML frontmatter — independent of required-field validation.
 
 ```swift
+let file = PromptFile.load(from: url)
 guard !file.isHiddenFlag else { continue }
+// Both appends happen after this guard:
+filesByParent[parent, default: []].append(file)
+allFiles.append(file)
 ```
+
+Place the `guard` before both `filesByParent` and `allFiles` appends so hidden files are excluded from everything.
 
 ### `PromptMetadata.parseHiddenFlag(from:) -> Bool`
 
-New static method on `PromptMetadata`. Extracts the YAML frontmatter block and checks for `hidden: true`. Returns `false` for any file without a `---` block, with malformed YAML, or without the `hidden` key.
+New static method on `PromptMetadata`. Extracts the YAML frontmatter block and checks for `hidden: true`. Returns `false` for any file without a `---` block, with malformed YAML, or without the `hidden` key. Only `hidden: true` (boolean) returns `true` — a string `"true"` or any other value returns `false`.
 
 ```swift
 static func parseHiddenFlag(from content: String) -> Bool {
@@ -59,11 +69,29 @@ static func parseHiddenFlag(from content: String) -> Bool {
 
 ### `PromptFile.isHiddenFlag: Bool`
 
-New stored property on `PromptFile`. Set in `PromptFile.load()` by calling `PromptMetadata.parseHiddenFlag(from: content)`. Only computed when the file has a `---` prefix (same guard used for metadata parsing).
+New stored property on `PromptFile` with a **default value of `false`**:
 
-### `hidden` field in `prompt-schema-v1.json`
+```swift
+let isHiddenFlag: Bool = false
+```
 
-Add `hidden` as an optional boolean field. This registers it in the schema for VS Code validation and the Prompt Architect.
+The default value ensures the error-path initializer in `PromptFile.load()` (the `catch` branch) compiles without changes — Swift's memberwise initializer uses the default when the argument is omitted.
+
+Set in the success path of `PromptFile.load()`:
+
+```swift
+let isHiddenFlag = content.hasPrefix("---")
+    ? PromptMetadata.parseHiddenFlag(from: content)
+    : false
+```
+
+Include `isHiddenFlag: isHiddenFlag` in the success-path `PromptFile(...)` initializer call.
+
+The `Equatable` conformance (`==` comparing `url` and `body`) is intentionally unchanged — `isHiddenFlag` is not part of prompt identity, and the directory watcher triggers a full rebuild on any change.
+
+### `hidden` field in `Resources/prompt-schema-v1.json`
+
+`Resources/prompt-schema-v1.json` exists at that path in the app bundle (added in a previous session). Add `hidden` as an optional boolean field in the `properties` object:
 
 ```json
 "hidden": {
@@ -82,9 +110,9 @@ hidden: true
 ---
 ```
 
-No required fields needed — `parseHiddenFlag` is intentionally independent of required-field validation. The files are excluded before they are ever added to the tree.
+No required fields needed — `parseHiddenFlag` is intentionally independent of required-field validation.
 
-`~/Documents/Prompts/prompt-schema-v1.json` is updated to match the bundle schema.
+`~/Documents/Prompts/prompt-schema-v1.json` is updated to match the bundle schema (copy of `Resources/prompt-schema-v1.json`).
 
 ---
 
@@ -106,7 +134,7 @@ Button(action: { handleSelection(file) }) {
 
 ### Fix
 
-Use the string-label form, matching the pattern used by non-tooltip buttons:
+Use the string-label form. This matches the existing non-tooltip branch (lines 49–50), which is already in production:
 
 ```swift
 Button(file.displayTitle, action: { handleSelection(file) })
@@ -114,7 +142,23 @@ Button(file.displayTitle, action: { handleSelection(file) })
     .help(tooltip.formatted())
 ```
 
-The `.foregroundStyle` modifier moves from the `Text` to the `Button`, which is equivalent for this use case.
+The `.foregroundStyle` modifier moves from the `Text` to the `Button`. This is the only place in `PromptsMenuButton.swift` that uses the custom-content Button form.
+
+---
+
+## Testing
+
+Unit tests for `PromptMetadata.parseHiddenFlag(from:)`:
+
+| Input | Expected |
+|---|---|
+| Content with no `---` block | `false` |
+| `---\nname: foo\n---` (no `hidden` key) | `false` |
+| `---\nhidden: false\n---` | `false` |
+| `---\nhidden: true\n---` | `true` |
+| `---\nhidden: "true"\n---` (string, not bool) | `false` |
+| `---\n{malformed yaml\n---` | `false` |
+| `---\nhidden: true\nname: Foo\n---` (extra fields) | `true` |
 
 ---
 
@@ -123,8 +167,8 @@ The `.foregroundStyle` modifier moves from the `Text` to the `Button`, which is 
 | Action | File | What |
 |---|---|---|
 | Modify | `Prompts/PromptMetadata.swift` | Add `parseHiddenFlag(from:) -> Bool` static method |
-| Modify | `Prompts/PromptFile.swift` | Add `isHiddenFlag: Bool` stored property; set in `load()` |
-| Modify | `Prompts/PromptLibrary.swift` | Skip `readme.md` before load; skip `isHiddenFlag` after load |
+| Modify | `Prompts/PromptFile.swift` | Add `isHiddenFlag: Bool = false` stored property; set in `load()` success path |
+| Modify | `Prompts/PromptLibrary.swift` | Skip `readme.md` before load; skip `isHiddenFlag` after load (before both appends) |
 | Modify | `Views/PromptsMenuButton.swift` | Fix Button form to use string-label initializer |
 | Modify | `Resources/prompt-schema-v1.json` | Add `hidden` boolean field |
 | Modify | `~/Documents/Prompts/prompt-schema-v1.json` | Update local copy to match bundle |
@@ -138,5 +182,4 @@ The `.foregroundStyle` modifier moves from the `Text` to the `Button`, which is 
 - Hiding directories (no use case yet)
 - A UI to manage hidden files
 - Persisting hidden state to UserDefaults
-- Applying `hidden` to the Intents/Shortcuts system (hidden files remain available to `allFiles` for Siri/Shortcuts — only the menu tree excludes them)
 - Updating `YAML-schema.md` documentation content to describe the new `hidden` field (the file will be hidden anyway; the architect prompt carries the schema reference)
