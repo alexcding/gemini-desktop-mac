@@ -76,6 +76,9 @@ Updated `gemini-selectors.json`:
 
 **Key notes:**
 - `gemini_tier` uses an array so that when Google renames `AfY8Hf`, the user updates expression `[0]` with the new key. The `"null"` fallback ensures a clean null if `WIZ_global_data` is absent entirely.
+- `jsc_version` intentionally duplicates the `webkit_version` expression. JSC co-releases with WebKit and its version is not independently exposed in `navigator.userAgent`. This mirrors the existing behavior in the old hardcoded script.
+- `attachments` evaluates to an array, not a string. An empty array `[]` is a valid result and is not treated as "empty" by the null-check logic (see Section 3).
+- `response_index` evaluates to a non-negative integer. `0` is a valid result meaning no responses yet and is passed through as-is, not coerced to null.
 - All expressions are self-contained one-liners. No expression depends on another.
 - Fields not present in the `metadata` dict are simply absent from the result — `fetchMetadataPreview` maps known keys to `ArtifactMetadata` properties; unknown keys are ignored.
 
@@ -120,12 +123,48 @@ Remove the 5 metadata-only CSS selector fields from `GeminiSelectors`:
 - `userQuerySelector`
 - `attachmentSelector`
 
-Add:
+All existing fields in `GeminiSelectors` are `let`. Add `metadata` as `let` with a default value (Swift allows default values on `let` stored properties in structs):
+
 ```swift
-var metadata: [String: MetadataExpression] = [:]
+let metadata: [String: MetadataExpression]
 ```
 
-Update `GeminiSelectors.default` to match — the `metadata` dict in the default mirrors the bundled JSON expressions above. This ensures the hardcoded fallback (used only if JSON is missing or corrupt) also produces correct output.
+The memberwise initializer requires `metadata` to be passed explicitly. Update `GeminiSelectors.default` with a complete explicit initializer that includes `metadata`:
+
+```swift
+static let `default` = GeminiSelectors(
+    conversationContainer: "infinite-scroller[data-test-id='chat-history-container']",
+    responseContainer: "response-container",
+    goodResponseButton: "[aria-label='Good response']",
+    badResponseButton: "[aria-label='Bad response']",
+    promptInput: "rich-textarea[aria-label='Enter a prompt here']",
+    richTextareaSelector: "rich-textarea[aria-label='Enter a prompt here']",
+    sendButtonSelector: "button[aria-label='Send message']",
+    lastResponseSelector: "model-response:last-of-type",
+    streamingIndicatorSelector: "button.send-button.stop",
+    metadata: [
+        "conversation_url": .single("window.location.href"),
+        "conversation_id": .single("window.location.href.match(/\\/app\\/([a-zA-Z0-9_-]+)/)?.[1] ?? null"),
+        "conversation_title": .multiple([
+            "document.querySelector('a.conversation.selected')?.textContent?.trim() || null",
+            "document.querySelector('[data-test-id=\"conversation-title\"]')?.textContent?.trim() || null"
+        ]),
+        "response_index": .single("document.querySelectorAll('response-container').length"),
+        "gemini_model": .multiple([
+            "document.querySelector('[data-test-id=\"bard-mode-menu-button\"]')?.textContent?.trim() || null",
+            "document.querySelector('[data-test-id=\"logo-pill-label-container\"]')?.textContent?.trim() || null"
+        ]),
+        "gemini_tier": .multiple([
+            "(window.WIZ_global_data?.['AfY8Hf'] === true) ? 'advanced' : (window.WIZ_global_data?.['AfY8Hf'] === false ? 'standard' : null)",
+            "null"
+        ]),
+        "request": .single("Array.from(document.querySelectorAll('user-query .query-text-line')).at(-1)?.textContent?.trim() || null"),
+        "attachments": .single("Array.from(document.querySelectorAll('.attachment-chip .attachment-name')).map(el => el.textContent.trim()).filter(Boolean)"),
+        "webkit_version": .single("navigator.userAgent.match(/AppleWebKit\\/([\\d.]+)/)?.[1] ?? null"),
+        "jsc_version": .single("navigator.userAgent.match(/AppleWebKit\\/([\\d.]+)/)?.[1] ?? null")
+    ]
+)
+```
 
 ---
 
@@ -133,35 +172,56 @@ Update `GeminiSelectors.default` to match — the `metadata` dict in the default
 
 **File:** `WebKit/UserScripts.swift`
 
-The new implementation generates a JS IIFE from `GeminiSelectors.shared.metadata`. No extraction logic lives in Swift. For each field:
+The new implementation generates a JS IIFE from `GeminiSelectors.shared.metadata`. No extraction logic lives in Swift. `GeminiSelectors.shared` is backed by a `static let` (computed once at first access) and is safe to read from a `nonisolated` context — no `await` or actor hopping required.
 
-- **Single expression** → one try/catch block
-- **Array of expressions** → IIFE with sequential try/catch blocks, returning on first non-empty hit
+For each field, Swift emits one of two patterns:
 
-Generated structure (no `eval`, no CSP issues — pure code generation):
+**Single expression** → one try/catch block. The null-check `_v !== ''` is applied only to string/scalar values. For array-valued fields (`attachments`), the expression evaluates to an array — the check `_v !== null && _v !== undefined` is sufficient; do not add `_v !== ''` for array fields. Distinguish at the Swift level by field key: `"attachments"` is the only array-valued field in the current schema. The `isArrayField` flag in the Swift generator is set by `key == "attachments"`. If a future schema adds more array-valued fields, their keys must also be added to this check.
+
+```javascript
+// Scalar single expression:
+try {
+    var _v = (window.location.href);
+    result["conversation_url"] = (_v !== null && _v !== undefined && _v !== '') ? _v : null;
+} catch(e) { result["conversation_url"] = null; }
+
+// Array single expression (attachments) — no empty-string check:
+try {
+    result["attachments"] = Array.from(document.querySelectorAll('.attachment-chip .attachment-name')).map(el => el.textContent.trim()).filter(Boolean);
+} catch(e) { result["attachments"] = []; }
+```
+
+**Array of expressions** → IIFE with sequential try/catch blocks, returning on first non-empty hit. All expressions in an array field are string/scalar — the empty-string check applies to all of them:
+
+```javascript
+(function() {
+    try {
+        var _v = (document.querySelector('[data-test-id="bard-mode-menu-button"]')?.textContent?.trim() || null);
+        if (_v !== null && _v !== undefined && _v !== '') { result["gemini_model"] = _v; return; }
+    } catch(e) {}
+    try {
+        var _v = (document.querySelector('[data-test-id="logo-pill-label-container"]')?.textContent?.trim() || null);
+        if (_v !== null && _v !== undefined && _v !== '') { result["gemini_model"] = _v; return; }
+    } catch(e) {}
+    result["gemini_model"] = null;
+})();
+```
+
+Full generated script structure:
 
 ```javascript
 (function() {
     var result = {};
 
-    // Single expression field:
-    try {
-        var _v = (window.location.href);
-        result["conversation_url"] = (_v !== null && _v !== undefined && _v !== '') ? _v : null;
-    } catch(e) { result["conversation_url"] = null; }
+    try { var _v = (window.location.href); result["conversation_url"] = (_v !== null && _v !== undefined && _v !== '') ? _v : null; } catch(e) { result["conversation_url"] = null; }
 
-    // Array field:
     (function() {
-        try {
-            var _v = (document.querySelector('[data-test-id="bard-mode-menu-button"]')?.textContent?.trim() || null);
-            if (_v !== null && _v !== undefined && _v !== '') { result["gemini_model"] = _v; return; }
-        } catch(e) {}
-        try {
-            var _v = (document.querySelector('[data-test-id="logo-pill-label-container"]')?.textContent?.trim() || null);
-            if (_v !== null && _v !== undefined && _v !== '') { result["gemini_model"] = _v; return; }
-        } catch(e) {}
+        try { var _v = (EXPR_0); if (_v !== null && _v !== undefined && _v !== '') { result["gemini_model"] = _v; return; } } catch(e) {}
+        try { var _v = (EXPR_1); if (_v !== null && _v !== undefined && _v !== '') { result["gemini_model"] = _v; return; } } catch(e) {}
         result["gemini_model"] = null;
     })();
+
+    try { result["attachments"] = Array.from(document.querySelectorAll('.attachment-chip .attachment-name')).map(el => el.textContent.trim()).filter(Boolean); } catch(e) { result["attachments"] = []; }
 
     return JSON.stringify(result);
 })();
@@ -171,13 +231,14 @@ Swift generation logic:
 
 ```swift
 nonisolated static func createMetadataScript() -> String {
-    let entries = GeminiSelectors.shared.metadata
+    let entries = GeminiSelectors.shared.metadata  // static let — safe from nonisolated context
     var blocks: [String] = []
 
     for (key, expr) in entries {
         let exprs = expr.expressions
+        let isArrayField = key == "attachments"  // only known array-valued field
         if exprs.count == 1 {
-            blocks.append(singleExprBlock(key: key, expr: exprs[0]))
+            blocks.append(singleExprBlock(key: key, expr: exprs[0], isArrayField: isArrayField))
         } else {
             blocks.append(multiExprBlock(key: key, exprs: exprs))
         }
@@ -193,7 +254,7 @@ nonisolated static func createMetadataScript() -> String {
 }
 ```
 
-Private helpers `singleExprBlock(key:expr:)` and `multiExprBlock(key:exprs:)` emit the JS snippets shown above. Both are `nonisolated static` pure string functions.
+Private helpers `singleExprBlock(key:expr:isArrayField:)` and `multiExprBlock(key:exprs:)` emit the JS snippets shown above. Both are `nonisolated static` pure string functions.
 
 ---
 
@@ -207,7 +268,7 @@ Add to the "Model context" section:
 var geminiTier: String?   // "advanced" or "standard", from WIZ_global_data
 ```
 
-Add to `toYAMLFrontmatter()` after `geminiModel`:
+Add to `toYAMLFrontmatter()` after `geminiModel`. The possible values are `"advanced"` and `"standard"` — no quote escaping is required (no double-quote characters in either value):
 
 ```swift
 if let geminiTier {
@@ -248,20 +309,85 @@ The generated metadata script wraps every expression in try/catch. If the DOM is
 
 **File:** `WebKit/UserScripts.swift`
 
-Extend `createDOMCaptureScript` to include a `metadataProbe` section alongside `selectorProbe`. For each field in `GeminiSelectors.shared.metadata`, evaluate expressions in order and record which index matched and the raw value (truncated to 120 chars):
+Extend `createDOMCaptureScript` to include a `metadataProbe` array in the returned JSON object, alongside the existing `selectorProbe`, `dataTestIds`, and `structural` arrays.
 
+For each field in `GeminiSelectors.shared.metadata`, evaluate expressions in order and record which index matched (0-based) and the raw value truncated to 120 chars. If all expressions fail, record `matchedIndex: null, value: null`.
+
+Generated probe JS structure — add inside the existing try/catch in `createDOMCaptureScript`, before the `return JSON.stringify(...)`. Swift generates one IIFE per field using the same loop structure for both single and multi-expression fields (single-expression fields get a one-element array):
+
+```javascript
+// 4. Metadata expression probe
+var metadataProbe = [];
+
+// Single-expression field (e.g., conversation_url):
+(function() {
+    var field = "conversation_url";
+    var exprs = ["window.location.href"];
+    for (var i = 0; i < exprs.length; i++) {
+        try {
+            var _v = eval(exprs[i]);
+            if (_v !== null && _v !== undefined && _v !== '') {
+                metadataProbe.push({ field: field, matchedIndex: i, value: String(_v).slice(0, 120) });
+                return;
+            }
+        } catch(e) {}
+    }
+    metadataProbe.push({ field: field, matchedIndex: null, value: null });
+})();
+
+// Multi-expression field (e.g., gemini_model):
+(function() {
+    var field = "gemini_model";
+    var exprs = [
+        "document.querySelector('[data-test-id=\"bard-mode-menu-button\"]')?.textContent?.trim() || null",
+        "document.querySelector('[data-test-id=\"logo-pill-label-container\"]')?.textContent?.trim() || null"
+    ];
+    for (var i = 0; i < exprs.length; i++) {
+        try {
+            var _v = eval(exprs[i]);
+            if (_v !== null && _v !== undefined && _v !== '') {
+                metadataProbe.push({ field: field, matchedIndex: i, value: String(_v).slice(0, 120) });
+                return;
+            }
+        } catch(e) {}
+    }
+    metadataProbe.push({ field: field, matchedIndex: null, value: null });
+})();
+
+// Array-valued field (attachments) — value is JSON-stringified:
+(function() {
+    var field = "attachments";
+    var exprs = ["Array.from(document.querySelectorAll('.attachment-chip .attachment-name')).map(el => el.textContent.trim()).filter(Boolean)"];
+    for (var i = 0; i < exprs.length; i++) {
+        try {
+            var _v = eval(exprs[i]);
+            if (_v !== null && _v !== undefined) {
+                metadataProbe.push({ field: field, matchedIndex: i, value: JSON.stringify(_v).slice(0, 120) });
+                return;
+            }
+        } catch(e) {}
+    }
+    metadataProbe.push({ field: field, matchedIndex: null, value: null });
+})();
+```
+
+**Note on `eval` in the probe:** `evaluateJavaScript` in WKWebView bypasses page CSP entirely — the page's `unsafe-eval` restriction does not apply to natively injected scripts. The expression strings originate from `GeminiSelectors.shared`, not the page. The metadata capture script (`createMetadataScript`) does **not** use `eval` — it generates inline code. The probe uses `eval` because passing expression strings as runtime data into a loop is cleaner for a diagnostic tool; correctness is the same.
+
+Output shape:
 ```json
 "metadataProbe": [
+  { "field": "conversation_url", "matchedIndex": 0, "value": "https://gemini.google.com/app/abc123xyz" },
   { "field": "gemini_model", "matchedIndex": 0, "value": "Thinking" },
   { "field": "gemini_tier", "matchedIndex": 0, "value": "advanced" },
   { "field": "conversation_title", "matchedIndex": 0, "value": "Shipping Pallet Michigan City to Austin" },
-  { "field": "conversation_id", "matchedIndex": 0, "value": "abc123xyz" }
+  { "field": "attachments", "matchedIndex": 0, "value": "[]" },
+  { "field": "conversation_id", "matchedIndex": null, "value": null }
 ]
 ```
 
-`matchedIndex: null` and `value: null` when all expressions returned empty — this is the primary signal that a field needs a new expression added to the JSON.
-
-The generation uses the same `multiExprBlock` pattern but returns index and value instead of setting `result`.
+**Diagnostic notes:**
+- `matchedIndex: null, value: null` is the primary signal that a field needs a new expression added to the JSON.
+- `attachments` with `matchedIndex: 0, value: "[]"` means the expression ran successfully and found zero attachment chips — this is expected when no files are attached. It does not indicate a broken selector.
 
 ---
 
@@ -280,10 +406,10 @@ The generation uses the same `multiExprBlock` pattern but returns index and valu
 
 | Action | File | Change |
 |---|---|---|
-| Modify | `Resources/gemini-selectors.json` | Add `metadata` object; remove 5 CSS metadata selector fields |
-| Modify | `WebKit/GeminiSelectors.swift` | Add `MetadataExpression` enum; replace 5 CSS fields with `metadata: [String: MetadataExpression]`; update `default` |
-| Modify | `WebKit/UserScripts.swift` | Rewrite `createMetadataScript()` to generate expression-driven JS; add `metadataProbe` to `createDOMCaptureScript` |
-| Modify | `Artifacts/ArtifactMetadata.swift` | Add `geminiTier: String?`; add to `toYAMLFrontmatter()` |
+| Modify | `Resources/gemini-selectors.json` | Add `metadata` object with all expression fields; remove 5 CSS metadata selector fields; bundled file must include `metadata` section |
+| Modify | `WebKit/GeminiSelectors.swift` | Add `MetadataExpression` enum; replace 5 CSS fields with `let metadata: [String: MetadataExpression]`; provide full updated `GeminiSelectors.default` with `metadata` |
+| Modify | `WebKit/UserScripts.swift` | Rewrite `createMetadataScript()` to generate expression-driven JS with array-field awareness; add `metadataProbe` to `createDOMCaptureScript` |
+| Modify | `Artifacts/ArtifactMetadata.swift` | Add `geminiTier: String?` to Model context section; add to `toYAMLFrontmatter()` after `geminiModel` |
 | Modify | `Coordinators/AppCoordinator.swift` | Remove `isPageReady` guard in `fetchMetadataPreview`; add `geminiTier` mapping |
 
 ---
@@ -293,22 +419,26 @@ The generation uses the same `multiExprBlock` pattern but returns index and valu
 | Scenario | Behavior |
 |---|---|
 | Expression throws a JS exception | That field is null; all other fields unaffected |
-| All expressions for a field return empty | Field is null; no user-facing error |
-| `metadata` key missing from JSON | `GeminiSelectors.metadata` is empty dict; script returns `{}`; all ArtifactMetadata DOM fields are nil |
-| WIZ_global_data key renamed by Google | `gemini_tier` returns null until JSON is updated; all other fields unaffected |
-| User JSON missing `metadata` section | Decodes as empty dict (default value); bundled JSON always has it |
+| All expressions for a field return empty/null | Field is null in result; `fetchMetadataPreview` maps it as nil in `ArtifactMetadata`; no user-facing error |
+| `metadata` key absent from user JSON | Decodes to empty dict (Swift default value); script returns `{}`; all DOM fields nil. The bundled JSON always has the `metadata` section — if user JSON omits it, they get no metadata. Document this in the user-facing patchability notes. |
+| WIZ_global_data key renamed by Google | `gemini_tier` returns null until the user updates expression `[0]` in their JSON |
+| Broken JS expression syntax in user JSON | That field is null (try/catch catches the syntax error at eval time); other fields unaffected |
 
 ---
 
 ## Manual Testing Checklist
 
 - [ ] **Basic metadata capture:** Trigger artifact capture mid-conversation → YAML frontmatter contains `conversation_url`, `conversation_title`, `gemini_model`, `request`
-- [ ] **Tier field:** With Advanced account, `gemini_tier: "advanced"` appears in YAML; with standard, `"standard"`
-- [ ] **Array fallback:** Manually break expression `[0]` for `gemini_model` in user JSON → expression `[1]` picks up the value
+- [ ] **Tier field — advanced:** With Advanced account, `gemini_tier: "advanced"` appears in YAML
+- [ ] **Tier field — standard:** With standard account, `gemini_tier: "standard"` appears in YAML
+- [ ] **Array fallback:** Manually corrupt expression `[0]` for `gemini_model` in user JSON → expression `[1]` picks up the value
 - [ ] **SPA navigation:** Switch conversations, immediately capture → metadata populated (no empty result from `isPageReady` guard)
-- [ ] **metadataProbe in debug capture:** Run "Capture DOM" → output contains `metadataProbe` array with `matchedIndex` and `value` per field
-- [ ] **Missing expression:** Remove a field from `metadata` in user JSON → that field absent from YAML, no crash
-- [ ] **Broken expression:** Add syntactically invalid JS expression → that field is null, other fields unaffected
+- [ ] **Attachments field:** Capture with no attachments → `attachments: []` in YAML (not null, not omitted)
+- [ ] **metadataProbe in debug capture:** Run "Capture DOM" → output contains `metadataProbe` array with `matchedIndex` (0-based integer or null) and `value` per field
+- [ ] **metadataProbe null signal:** Remove a working expression from user JSON → that field shows `matchedIndex: null, value: null` in probe output
+- [ ] **Missing expression field:** Remove a field from `metadata` in user JSON → that field absent from YAML, no crash
+- [ ] **Broken expression:** Add syntactically invalid JS expression to user JSON → that field is null in YAML, other fields unaffected
 - [ ] **User file override:** Place updated `gemini-selectors.json` in Application Support → Settings shows "Custom (user file)"; new expressions used
 - [ ] **Fallback to bundle:** Delete user file, relaunch → bundled expressions used, metadata still populates
-- [ ] **YAML output:** Verify `gemini_tier` appears between `gemini_model` and `request` in frontmatter
+- [ ] **YAML field order:** Verify `gemini_tier` appears between `gemini_model` and `request` in frontmatter
+- [ ] **GeminiSelectors.default:** Delete both user file and bundle resource (test only) → hardcoded `default` produces correct metadata
