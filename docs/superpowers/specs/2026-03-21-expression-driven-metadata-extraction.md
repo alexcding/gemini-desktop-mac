@@ -123,13 +123,15 @@ Remove the 5 metadata-only CSS selector fields from `GeminiSelectors`:
 - `userQuerySelector`
 - `attachmentSelector`
 
-All existing fields in `GeminiSelectors` are `let`. Add `metadata` as `let` with a default value (Swift allows default values on `let` stored properties in structs):
+All existing fields in `GeminiSelectors` are `let`. Add `metadata` as `var` with an empty-dict default:
 
 ```swift
-let metadata: [String: MetadataExpression]
+var metadata: [String: MetadataExpression] = [:]
 ```
 
-The memberwise initializer requires `metadata` to be passed explicitly. Update `GeminiSelectors.default` with a complete explicit initializer that includes `metadata`:
+Use `var` (not `let`) so that `JSONDecoder` can skip the key when absent from a user JSON file. A user JSON that has all the top-level CSS selector fields but no `"metadata"` key will decode successfully — giving the user their custom CSS selectors while falling back to `GeminiSelectors.default.metadata` for the metadata expressions. A `let` with no default would throw `DecodingError.keyNotFound` and discard the entire user file.
+
+Because the field has a default value, the memberwise initializer makes it optional. Update `GeminiSelectors.default` to pass it explicitly: Update `GeminiSelectors.default` with a complete explicit initializer that includes `metadata`:
 
 ```swift
 static let `default` = GeminiSelectors(
