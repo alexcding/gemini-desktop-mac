@@ -37,31 +37,17 @@ struct PromptsMenuButton: View {
 
     @ViewBuilder
     private func fileMenuButton(for file: PromptFile) -> some View {
-        let badgePrefix = getBadgePrefix(for: file.scanResult)
-        let title = badgePrefix + file.displayTitle
+        let isDeprecated = file.metadata?.deprecated == true
 
-        if let description = file.displayDescription {
+        if let tooltip = file.tooltipContent {
             Button(action: { handleSelection(file) }) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                    Text(description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text(file.displayTitle)
+                    .foregroundStyle(isDeprecated ? Color.secondary : Color.primary)
             }
+            .help(tooltip.formatted())
         } else {
-            Button(title, action: { handleSelection(file) })
-        }
-    }
-
-    private func getBadgePrefix(for scanResult: ScanResult) -> String {
-        switch scanResult {
-        case .danger:
-            return "🚫 "
-        case .warning:
-            return "⚠️ "
-        case .safe:
-            return ""
+            Button(file.displayTitle, action: { handleSelection(file) })
+                .foregroundStyle(isDeprecated ? Color.secondary : Color.primary)
         }
     }
 
