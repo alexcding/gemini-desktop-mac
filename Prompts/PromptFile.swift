@@ -70,9 +70,6 @@ struct PromptTooltipContent {
         if !inputVariables.isEmpty {
             prodLines.append("Inputs:     \(inputVariables.joined(separator: ", "))")
         }
-        if let outputSchema = outputSchema, !outputSchema.isEmpty {
-            prodLines.append("Output:     \(outputSchema)")
-        }
         if let lastUpdated = lastUpdated, !lastUpdated.isEmpty {
             prodLines.append("Updated:    \(lastUpdated)")
         }
@@ -90,6 +87,7 @@ struct PromptTooltipContent {
     }
 
     /// Wraps text at 60 characters, indenting continuation lines to align with value start.
+    /// Single words longer than maxWidth are not broken — they exceed the limit as-is.
     private func wrap(_ text: String, label: String) -> [String] {
         let maxWidth = 60
         let indent   = String(repeating: " ", count: label.count)
