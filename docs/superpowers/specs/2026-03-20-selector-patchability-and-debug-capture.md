@@ -1,12 +1,14 @@
 # Selector Patchability & Debug Capture — Design Spec
 
+> **STATUS: COMPLETE** — All features implemented. Note: the 5 CSS metadata selector fields described in Feature A were later superseded by expression-driven metadata extraction (see `2026-03-21-expression-driven-metadata-extraction.md`).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Let users apply selector fixes without rebuilding the app, and give developers a one-click debug capture to diagnose broken selectors quickly.
 
 **Architecture:** Two independent but related features. Feature A makes `GeminiSelectors` user-patchable at runtime. Feature B adds an opt-in debug dump tool that captures Gemini page state to a file.
 
-**Tech Stack:** Swift, SwiftUI, WKWebView JS injection, macOS Application Support directory, NSMenu
+**Tech Stack:** Swift, SwiftUI, WKWebView JS injection, macOS Application Support directory, `CommandMenu` (SwiftUI)
 
 ---
 
@@ -34,7 +36,7 @@ If the user file exists but fails to decode, fall back to bundle and log the err
 
 ### New Fields
 
-Add to `GeminiSelectors` (struct and bundled JSON):
+These 6 fields are **additions** to the existing 8 fields in `GeminiSelectors`. The existing fields are unchanged. Update both the Swift struct and the bundled `gemini-selectors.json`:
 
 | Field | Default Value |
 |---|---|
@@ -47,7 +49,7 @@ Add to `GeminiSelectors` (struct and bundled JSON):
 
 ### Script Updates
 
-`createMetadataScript()` and `createCaptureScript()` accept a `GeminiSelectors` parameter (or read from `GeminiSelectors.shared`) instead of hardcoding selector strings. No behavioural change — only the source of selector strings changes.
+`createMetadataScript()` reads selector values from `GeminiSelectors.shared` instead of hardcoded strings. `createCaptureScript(lastResponseSelector:)` already accepts a selector parameter — no change needed there; callers already pass `GeminiSelectors.shared.lastResponseSelector`. No behavioural change — only the source of selector strings changes.
 
 ### Settings UI
 
@@ -75,11 +77,11 @@ Also configurable via terminal:
 defaults write com.daveorzach.geminidesktop DebugModeEnabled -bool true
 ```
 
-No confirmation dialog. The toggle and warning text together constitute informed consent.
+Add `debugModeEnabled` case to `UserDefaultsKeys` enum. No confirmation dialog. The toggle and warning text together constitute informed consent.
 
 ### Debug Menu
 
-When debug mode is on, a **Debug** menu appears in the macOS menu bar:
+When debug mode is on, a **Debug** menu appears in the macOS menu bar. Implement using SwiftUI `CommandMenu("Debug")` inside a `Commands` conformance, conditioned on the `debugModeEnabled` UserDefaults value. The menu does not appear when debug mode is off.
 
 ```
 Debug
@@ -89,8 +91,6 @@ Debug
   Capture WIZ State
   Capture Network
 ```
-
-The menu does not appear when debug mode is off.
 
 ### What Each Capture Collects
 
