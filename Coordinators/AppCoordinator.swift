@@ -280,7 +280,6 @@ class AppCoordinator {
     /// or the JS extraction fails.
     func fetchMetadataPreview() async -> ArtifactMetadata {
         var metadata = ArtifactMetadata.empty()
-        guard webViewModel.isPageReady else { return metadata }
 
         let script = UserScripts.createMetadataScript()
         return await withCheckedContinuation { continuation in
