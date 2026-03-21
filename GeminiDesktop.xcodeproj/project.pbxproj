@@ -37,6 +37,7 @@
 			membershipExceptions = (
 				AppIcon.icon,
 				Assets.xcassets,
+				"prompt-content-schema-v1.json",
 				"prompt-schema-v1.json",
 				"prompt-template.md",
 			);
@@ -45,7 +46,7 @@
 		749D25F32EEE2C330054BA29 /* Exceptions for "Utils" folder in "GeminiDesktop" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-			ArtifactLogger.swift,
+				ArtifactLogger.swift,
 				BookmarkStore.swift,
 				HTMLToMarkdown.swift,
 				"NSScreen+Extensions.swift",

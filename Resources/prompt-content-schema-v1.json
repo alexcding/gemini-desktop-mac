@@ -1,0 +1,129 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Gemini Desktop Prompt Body Content Schema v1",
+  "description": "Catalog of body sections for Gemini Desktop prompt files. Not an executable validator — a machine-readable reference for linters, the Prompt Architect, and VS Code tooling. See https://github.com/daveorzach/gemini-desktop-mac for details.",
+  "sections": [
+    {
+      "id": "identity_and_purpose",
+      "heading": "# IDENTITY AND PURPOSE",
+      "tier": "required",
+      "order": 1,
+      "condition": null,
+      "description": "Defines who the model is and its one-sentence mission. Sets the frame for all subsequent sections. Must be the first section.",
+      "providers": ["anthropic", "google", "universal"],
+      "anthropic_note": "Wrap in <persona> XML tag when output feeds a downstream Claude agent in an agentic chain.",
+      "google_note": "Maps to the 'Persona' pillar of Google's Four Pillars framework (Persona / Task / Context / Format).",
+      "example": "You are a staff-level technical reviewer. Your purpose is to critically evaluate research and planning documents before they enter an execution phase."
+    },
+    {
+      "id": "context",
+      "heading": "# CONTEXT",
+      "tier": "conditional",
+      "order": 2,
+      "condition": "Model needs domain knowledge not available in its training data (e.g. proprietary schemas, clinical criteria, user-specific data).",
+      "description": "Background information the model needs to execute the instructions correctly. Must appear before INSTRUCTIONS when both are present — domain knowledge must be loaded before instructions reference it. For very long context (20k+ tokens), move to the end just above OUTPUT FORMAT.",
+      "providers": ["anthropic", "google", "universal"],
+      "anthropic_note": "Wrap in <context> XML tag for chain consumption. For long documents, place after INSTRUCTIONS (Anthropic research shows queries at end improve quality up to 30% for complex multi-document prompts).",
+      "google_note": "Maps to the 'Context' pillar. Google recommends structured Markdown subsections for complex context blocks.",
+      "example": "## Schema Reference\nYou enforce the following required YAML fields: schema_version, name, version, role, summary."
+    },
+    {
+      "id": "instructions",
+      "heading": "# INSTRUCTIONS",
+      "tier": "required",
+      "order": 3,
+      "condition": null,
+      "description": "What the model must do. Imperatives only — no suggestions, no passive voice. Numbered list preferred. Each instruction must be specific enough to execute without further clarification.",
+      "providers": ["anthropic", "google", "universal"],
+      "anthropic_note": "Wrap in <task> XML tag for chain consumption. Claude performs best with explicit success criteria alongside instructions.",
+      "google_note": "Maps to the 'Task' pillar. Google recommends breaking complex tasks into numbered sub-tasks with explicit scope boundaries.",
+      "example": "1. Confirm the target provider(s) before starting Phase 1.\n2. Run Phase 1 (Research) fully before producing any proposed changes.\n3. Never modify a prompt's semantic intent — only how it is expressed."
+    },
+    {
+      "id": "steps",
+      "heading": "# STEPS",
+      "tier": "conditional",
+      "order": 4,
+      "condition": "Task has a defined multi-step sequence or phased workflow (e.g. interview → audit → execute, or research → plan → approve).",
+      "description": "Ordered process the model must follow. Use ## Phase N or ## Step N subheadings for multi-phase workflows. Each phase should have a clear entry condition and exit gate.",
+      "providers": ["anthropic", "google", "universal"],
+      "anthropic_note": null,
+      "google_note": null,
+      "example": "## Phase 1 — Discovery\n1. Ask the user up to 7 targeted questions.\n2. Do not proceed until all 7 questions are answered.\n\n## Phase 2 — Audit\n1. Review the data collected in Phase 1."
+    },
+    {
+      "id": "constraints",
+      "heading": "# CONSTRAINTS",
+      "tier": "conditional",
+      "order": 5,
+      "condition": "Hard behavioral rules, safety gates, or prohibited actions exist. Always include when safety_gates are declared in YAML.",
+      "description": "Hard rules the model must never violate. Numbered list. Each constraint must be a clear prohibition or mandatory action. Safety-critical prompts must mirror YAML safety_gates here — YAML is for tooling, body is for the model.",
+      "providers": ["anthropic", "google", "universal"],
+      "anthropic_note": "Wrap in <constraints> XML tag for chain consumption.",
+      "google_note": null,
+      "example": "1. Never produce a diagnosis — output assessment summaries only.\n2. Always include the mandatory disclaimer verbatim before closing.\n3. If any MCP command fails, HALT immediately and report the error. Do not self-correct."
+    },
+    {
+      "id": "examples",
+      "heading": "# EXAMPLES",
+      "tier": "optional",
+      "order": 6,
+      "condition": null,
+      "description": "Few-shot examples showing correct behavior. Include both positive (correct) and negative (wrong + why) examples for maximum effect. Single biggest quality multiplier for structured output prompts.",
+      "providers": ["anthropic", "google", "universal"],
+      "anthropic_note": "Place positive examples before negative. Claude uses examples as behavioral anchors — the last example before the task is the strongest signal.",
+      "google_note": "Gemini responds well to role-labeled examples: 'User: X\\nAssistant: Y' format.",
+      "example": "## Positive Example\nInput: A research doc with a missing success criterion.\nOutput: ISSUE-001 severity='blocking' — 'Success criterion not defined. Add: metric >= threshold format.'\n\n## Negative Example\nInput: Same doc.\nOutput: 'The success criteria section seems a bit vague.' — WRONG: this is a suggestion, not an imperative directive."
+    },
+    {
+      "id": "uncertainty_handling",
+      "heading": "# UNCERTAINTY HANDLING",
+      "tier": "optional",
+      "order": 7,
+      "condition": null,
+      "description": "What the model does when it doesn't know the answer or the input is out of scope. Prevents hallucination. Essential for prompts used in production or agentic chains where wrong output is worse than no output.",
+      "providers": ["anthropic", "google", "universal"],
+      "anthropic_note": null,
+      "google_note": null,
+      "example": "If you do not know the answer, say so explicitly. Do not guess.\nIf the input is outside your defined scope, respond: '[Scope limit: explain why]'\nIf a required field cannot be inferred, ask the user for the value rather than generating one."
+    },
+    {
+      "id": "input",
+      "heading": "# INPUT",
+      "tier": "optional",
+      "order": 8,
+      "condition": null,
+      "description": "Formal specification of what the model expects as input. For agentic chains with structured inputs. Declares expected format, required fields, and how the model should handle malformed input.",
+      "providers": ["anthropic", "google", "universal"],
+      "anthropic_note": null,
+      "google_note": null,
+      "example": "Expected input: a single Markdown document representing a research brief, planning doc, RFC, or task breakdown. Minimum length: 200 words. If input is shorter, ask the user if it is complete before proceeding."
+    },
+    {
+      "id": "output_format",
+      "heading": "# OUTPUT FORMAT",
+      "tier": "required",
+      "order": 9,
+      "condition": null,
+      "description": "Exact structure of the model's output. Always last — the model reads this closest to where it starts generating. Specify schema (JSON, XML, Markdown), required fields, length limits, tone, and what must NOT appear in the output.",
+      "providers": ["anthropic", "google", "universal"],
+      "anthropic_note": "Wrap in <output_format> XML tag for chain consumption. When reasoning_trace is true, specify <scratchpad> and <output_payload> XML blocks here (see scratchpad_split pattern).",
+      "google_note": "Maps to the 'Format' pillar. Specify Markdown structure explicitly — Gemini defaults to conversational prose without format guidance.",
+      "example": "Respond in Markdown. Use ## headers for each section. Maximum 500 words total. Do not include preamble or sign-off."
+    }
+  ],
+  "patterns": [
+    {
+      "id": "scratchpad_split",
+      "heading": null,
+      "tier": "agentic",
+      "order": null,
+      "condition": "reasoning_trace: true in YAML frontmatter. Used inside the # OUTPUT FORMAT section — not a standalone section.",
+      "description": "Two-block output pattern for prompts that feed downstream agents. The <scratchpad> block contains private reasoning (stripped by orchestrator before forwarding). The <output_payload> block contains the structured output the downstream agent parses. Forces chain-of-thought before commitment. Biggest single quality improvement for agentic structured output in 2026 models.",
+      "providers": ["anthropic", "google", "universal"],
+      "anthropic_note": "Claude is specifically trained on this pattern. The scratchpad is functionally equivalent to Claude's extended thinking but explicit and cross-model.",
+      "google_note": "Gemini Thinking models produce internal reasoning automatically — the scratchpad pattern makes that reasoning explicit and portable across non-thinking models.",
+      "example": "Your complete output must use this structure:\n\n<scratchpad>\n[Your full reasoning here. Work through every constraint and edge case. This block will be stripped by the orchestrator before forwarding.]\n</scratchpad>\n\n<output_payload>\n[Structured output here. This is the only block the downstream agent reads.]\n</output_payload>\n\nNo text outside these two blocks."
+    }
+  ]
+}
