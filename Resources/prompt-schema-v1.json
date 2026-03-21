@@ -97,6 +97,10 @@
       "type": "string",
       "enum": ["single-turn", "multi-turn", "interview"],
       "description": "How this prompt is designed to be invoked. Shapes Gemini Desktop and orchestrator behavior."
+    },
+    "hidden": {
+      "type": "boolean",
+      "description": "When true, the file is excluded from the Gemini Desktop Prompts menu. Use for documentation files stored in the prompt library directory."
     }
   },
   "additionalProperties": true
