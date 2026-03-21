@@ -132,4 +132,23 @@ struct PromptMetadata {
         }
         return content
     }
+
+    // MARK: - Hidden flag
+
+    /// Returns true only if the YAML frontmatter contains `hidden: true` (boolean).
+    /// Independent of required-field validation — a file can have only `hidden: true`
+    /// and nothing else and still return true. Returns false for any file without a
+    /// `---` block, malformed YAML, missing key, or `hidden: "true"` (string).
+    static func parseHiddenFlag(from content: String) -> Bool {
+        let lines = content.components(separatedBy: .newlines)
+        guard lines.count > 2, lines[0] == "---" else { return false }
+        var endIndex = -1
+        for i in 1..<lines.count {
+            if lines[i] == "---" { endIndex = i; break }
+        }
+        guard endIndex > 1 else { return false }
+        let yamlContent = lines[1..<endIndex].joined(separator: "\n")
+        guard let decoded = try? Yams.load(yaml: yamlContent) as? [String: Any] else { return false }
+        return decoded["hidden"] as? Bool == true
+    }
 }
