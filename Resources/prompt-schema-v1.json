@@ -83,6 +83,20 @@
       "type": "array",
       "items": { "type": "string" },
       "description": "Named placeholders the prompt body expects (e.g. ['user_name', 'context'])."
+    },
+    "output_format": {
+      "type": "string",
+      "enum": ["xml", "json", "markdown", "conversational"],
+      "description": "Structure of the prompt's primary output. Enables orchestrator routing and parser selection."
+    },
+    "reasoning_trace": {
+      "type": "boolean",
+      "description": "Whether this prompt uses a scratchpad or extended thinking block. Signals cost/latency implications and whether the orchestrator must strip the trace before forwarding."
+    },
+    "interaction_mode": {
+      "type": "string",
+      "enum": ["single-turn", "multi-turn", "interview"],
+      "description": "How this prompt is designed to be invoked. Shapes Gemini Desktop and orchestrator behavior."
     }
   },
   "additionalProperties": true
