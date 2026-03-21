@@ -95,7 +95,9 @@ license: "MIT"
 - A file with no `---` block: `metadata == nil`, no error, renders as plain filename.
 - A file with a `---` block where all required fields are present: `metadata` fully populated.
 - A file with a `---` block where any required field is missing: `metadata == nil`, `yamlParseError == true`, error shown in tooltip.
+- A file with a `---` block containing invalid YAML syntax: `metadata == nil`, `yamlParseError == true`, error shown in tooltip.
 - Optional fields absent from the file: omitted from tooltip, no error.
+- Optional array fields absent from the file: treated as empty `[]`; rows omitted from tooltip when empty.
 
 ---
 
@@ -112,6 +114,8 @@ Key contents:
 - `required` array: `["schema_version", "name", "version", "role", "summary"]`
 - `properties` for every field with `type`, `description`, and where appropriate `enum` or `items`
 - `additionalProperties: true` — orchestrators may add custom fields
+
+**Loading at runtime:** Both files are added to the Xcode project under the `Resources/` group and included in the "Copy Bundle Resources" build phase (same as `gemini-selectors.json`). Loaded via `Bundle.main.url(forResource:withExtension:)`. In v1, neither file is read at runtime by the app — they ship for external tooling use only. Runtime validation against the JSON Schema is out of scope for v1.
 
 ### `prompt-template.md`
 
@@ -163,15 +167,17 @@ Security badge emoji (`🚫`, `⚠️`) removed from menu item labels entirely. 
 
 ### Deprecated Prompts
 
-When `deprecated: true` in metadata, the menu item renders with `.foregroundStyle(.secondary)` — greyed out, still selectable. The tooltip notes the prompt is deprecated.
+When `deprecated: true` in metadata, the menu item renders with `.foregroundStyle(.secondary)` — greyed out, **still selectable and injectable**. The tooltip appends `Deprecated — use a newer version`. No `NSAlert` on click.
 
 ### YAML Parse Errors
 
-When `yamlParseError == true`, the tooltip notes the error. No visual change to the menu item label beyond the plain filename — the error is not surfaced until hover.
+When `yamlParseError == true`, the tooltip shows `YAML error: required fields missing` instead of all other metadata. No visual change to the menu item label — the error is not surfaced until hover.
+
+### Precedence: YAML error takes priority over deprecated. If both are true, the tooltip shows only the YAML error.
 
 ### Ordering
 
-Unchanged: mirrors filesystem directory structure, alphabetical by filename within each directory.
+Unchanged: mirrors filesystem directory structure, alphabetical by filename within each directory. `PromptLibrary` currently sorts by `displayTitle` — since `displayTitle` now always equals the filename, the result is identical. No change needed in `PromptLibrary.swift`.
 
 ---
 
@@ -211,6 +217,15 @@ struct PromptTooltipContent {
 
 `PromptFile` gains a computed property `var tooltipContent: PromptTooltipContent?` that returns `nil` when there is no metadata and no security notice and no YAML error (i.e. a plain prompt with no frontmatter gets no tooltip).
 
+`securityNotice` is derived from `PromptFile.scanResult`:
+- `.safe` → `nil`
+- `.warning(reason: let r)` → `"⚠ Risky: \"\(r)\""`
+- `.danger(reason: let r)` → `"Danger: \"\(r)\""`
+
+Optional string fields (`author`, `language`, `license`, `outputSchema`) are omitted from the tooltip when `nil` or empty — they do not have their own labeled rows. `model_parameters` is omitted from the tooltip entirely in v1.
+
+YAML field names (snake_case) map to Swift camelCase properties per Swift convention: `last_updated` → `lastUpdated`, `compatible_with` → `compatibleWith`, `input_variables` → `inputVariables`, `output_schema` → `outputSchema`.
+
 ### Tooltip Format
 
 ```
@@ -229,14 +244,32 @@ Updated:    2026-03-21
 ```
 
 **Formatting rules:**
-- Line 1: `name  vX.Y` (omit version if absent, omit name if absent)
-- Line 2: security notice if present (danger or warning with matched pattern)
-- Blank line
-- Behavior group: Role, Summary (wrapped), Intent — omit absent fields
-- Blank line (only if production fields present)
-- Production group: Compatible, Tags, Inputs, Output, Updated — omit absent fields
-- If `deprecated: true`: append `\nDeprecated — use a newer version`
-- If `yamlError: true`: show `YAML error: required fields missing` instead of all other content
+- Line 1: `name  vX.Y` (omit version if absent, omit name if absent; if both absent, omit line 1)
+- Line 2: security notice if present — `⚠ Risky: "pattern"` or `Danger: "pattern"`
+- Blank line separator after header block
+- Behavior group: Role, Summary (wrapped), Intent — omit row when field is nil/empty
+- Blank line (only if at least one production field is present)
+- Production group: Compatible, Tags, Inputs, Updated — omit row when field is nil or empty array
+- If `deprecated: true`: append `\nDeprecated — use a newer version` as final line
+- If `yamlError: true`: entire tooltip is replaced with `YAML error: required fields missing` (no other fields shown)
+- Long strings (summary, intent): wrap at 60 characters; continuation lines indented 2 spaces
+- Arrays (compatible, tags, inputs): joined with `", "`
+
+**Struct field → tooltip label mapping:**
+
+| Struct Field | Tooltip Label | Format |
+|---|---|---|
+| `name` + `version` | (header line 1) | `Name  vX.Y` |
+| `securityNotice` | (line 2) | value verbatim |
+| `role` | `Role` | `Role:     value` |
+| `summary` | `Summary` | wrapped, indented continuations |
+| `intent` | `Intent` | wrapped, indented continuations |
+| `compatibleWith` | `Compatible` | comma-space joined |
+| `tags` | `Tags` | comma-space joined |
+| `inputVariables` | `Inputs` | comma-space joined |
+| `lastUpdated` | `Updated` | as-is string |
+| `deprecated` | (final line) | `Deprecated — use a newer version` |
+| `yamlError` | (replaces all) | `YAML error: required fields missing` |
 
 ---
 
