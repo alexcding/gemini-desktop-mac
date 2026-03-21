@@ -76,54 +76,62 @@ enum UserScripts {
     }
 
     /// Creates a script that extracts conversation metadata from the Gemini DOM.
-    /// Returns a JSON string. Wraps everything in try/catch — returns "{}" on any exception.
-    /// Selectors sourced from GeminiSelectors.shared (user-patchable via gemini-selectors.json).
+    /// Returns a JSON string. Each field is individually wrapped in try/catch.
+    /// All extraction expressions are sourced from GeminiSelectors.shared.metadata
+    /// (user-patchable via gemini-selectors.json — no recompile needed for selector updates).
+    /// GeminiSelectors.shared is backed by a static let — safe from nonisolated context.
     nonisolated static func createMetadataScript() -> String {
-        let s = GeminiSelectors.shared
+        let entries = GeminiSelectors.shared.metadata
+        var blocks: [String] = []
+
+        for (key, expr) in entries {
+            let exprs = expr.expressions
+            let isArrayField = key == "attachments"  // only array-valued field in current schema
+            if exprs.count == 1 {
+                blocks.append(singleExprBlock(key: key, expr: exprs[0], isArrayField: isArrayField))
+            } else {
+                blocks.append(multiExprBlock(key: key, exprs: exprs))
+            }
+        }
+
         return """
         (function() {
-            try {
-                var url = window.location.href;
-                var idMatch = url.match(/\\/app\\/([a-zA-Z0-9_-]+)/);
-                var conversationId = idMatch ? idMatch[1] : null;
-
-                var responseIndex = document.querySelectorAll('\(s.responseContainer)').length;
-
-                var modelEl = document.querySelector('\(s.modelSelector)')
-                    || document.querySelector('\(s.modelSelectorFallback)');
-                var geminiModel = modelEl ? modelEl.textContent.trim() : null;
-
-                var userTurns = document.querySelectorAll('\(s.userQuerySelector)');
-                var request = null;
-                if (userTurns.length > 0) {
-                    request = userTurns[userTurns.length - 1].textContent.trim();
-                }
-
-                var attachmentEls = document.querySelectorAll('\(s.attachmentSelector)');
-                var attachments = Array.from(attachmentEls)
-                    .map(function(el) { return el.textContent.trim(); })
-                    .filter(Boolean);
-
-                var webkitVersion = null;
-                var uaMatch = navigator.userAgent.match(/AppleWebKit\\/([\\d.]+)/);
-                if (uaMatch) { webkitVersion = uaMatch[1]; }
-
-                return JSON.stringify({
-                    conversation_url: url,
-                    conversation_id: conversationId,
-                    conversation_title: (document.querySelector('\(s.conversationTitleSelector)') || {textContent: ''}).textContent.trim() || null,
-                    response_index: responseIndex,
-                    gemini_model: geminiModel,
-                    request: request,
-                    attachments: attachments,
-                    webkit_version: webkitVersion,
-                    jsc_version: webkitVersion
-                });
-            } catch (e) {
-                return '{}';
-            }
+            var result = {};
+            \(blocks.joined(separator: "\n    "))
+            return JSON.stringify(result);
         })();
         """
+    }
+
+    /// Generates a JS try/catch block that evaluates one expression and assigns to result[key].
+    /// isArrayField: if true, skips the empty-string check (arrays are never empty strings).
+    /// On catch, sets result[key] to null (scalar) or [] (array).
+    nonisolated private static func singleExprBlock(key: String, expr: String, isArrayField: Bool) -> String {
+        if isArrayField {
+            return """
+            try { result["\(key)"] = (\(expr)); } catch(e) { result["\(key)"] = []; }
+            """
+        } else {
+            return """
+            try { var _v = (\(expr)); result["\(key)"] = (_v !== null && _v !== undefined && _v !== '') ? _v : null; } catch(e) { result["\(key)"] = null; }
+            """
+        }
+    }
+
+    /// Generates an IIFE that tries each expression in order, assigning the first
+    /// non-null non-empty result to result[key]. Falls through to null if all fail.
+    nonisolated private static func multiExprBlock(key: String, exprs: [String]) -> String {
+        var lines: [String] = ["(function() {"]
+        for expr in exprs {
+            lines.append("""
+                try { var _v = (\(expr)); if (_v !== null && _v !== undefined && _v !== '') { result["\(key)"] = _v; return; } } catch(e) {}
+            """)
+        }
+        lines.append("""
+            result["\(key)"] = null;
+        })();
+        """)
+        return lines.joined(separator: "\n")
     }
 
     // MARK: - Script Sources
