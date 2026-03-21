@@ -71,7 +71,11 @@ final class PromptLibrary {
                     // Skip empty directories; we'll add them if they contain files
                     continue
                 } else if url.pathExtension.lowercased() == "md" {
+                    // Level 1: skip README.md before load (no I/O needed)
+                    guard url.lastPathComponent.lowercased() != "readme.md" else { continue }
                     let file = PromptFile.load(from: url)
+                    // Level 2: skip files marked hidden: true in YAML
+                    guard !file.isHiddenFlag else { continue }
                     let parent = url.deletingLastPathComponent()
                     filesByParent[parent, default: []].append(file)
                     allFiles.append(file)

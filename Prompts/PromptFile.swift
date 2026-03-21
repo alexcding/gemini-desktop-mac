@@ -116,6 +116,7 @@ struct PromptFile: Identifiable, Equatable {
     let yamlParseError: Bool
     let body: String
     let scanResult: ScanResult
+    let isHiddenFlag: Bool
 
     var id: String { url.lastPathComponent }
 
@@ -177,12 +178,18 @@ struct PromptFile: Identifiable, Equatable {
                 yamlParseError = (metadata == nil)
             }
 
+            // Compute hidden flag (independent of metadata parsing)
+            let isHiddenFlag = content.hasPrefix("---")
+                ? PromptMetadata.parseHiddenFlag(from: content)
+                : false
+
             return PromptFile(
                 url:            url,
                 metadata:       metadata,
                 yamlParseError: yamlParseError,
                 body:           body,
-                scanResult:     scanResult
+                scanResult:     scanResult,
+                isHiddenFlag:   isHiddenFlag
             )
         } catch {
             return PromptFile(
@@ -190,7 +197,8 @@ struct PromptFile: Identifiable, Equatable {
                 metadata:       nil,
                 yamlParseError: false,
                 body:           "",
-                scanResult:     .safe
+                scanResult:     .safe,
+                isHiddenFlag:   false
             )
         }
     }
