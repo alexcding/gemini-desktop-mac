@@ -7,10 +7,27 @@
   "richTextareaSelector": "rich-textarea[aria-label='Enter a prompt here']",
   "sendButtonSelector": "button[aria-label='Send message']",
   "lastResponseSelector": "model-response:last-of-type",
-  "conversationTitleSelector": "a.conversation.selected",
-  "modelSelector": "[data-test-id=\"bard-mode-menu-button\"]",
-  "modelSelectorFallback": "[data-test-id=\"logo-pill-label-container\"]",
-  "userQuerySelector": "user-query .query-text-line",
-  "attachmentSelector": ".attachment-chip .attachment-name",
-  "streamingIndicatorSelector": "button.send-button.stop"
+  "streamingIndicatorSelector": "button.send-button.stop",
+
+  "metadata": {
+    "conversation_url": "window.location.href",
+    "conversation_id": "window.location.href.match(/\\/app\\/([a-zA-Z0-9_-]+)/)?.[1] ?? null",
+    "conversation_title": [
+      "document.querySelector('a.conversation.selected')?.textContent?.trim() || null",
+      "document.querySelector('[data-test-id=\"conversation-title\"]')?.textContent?.trim() || null"
+    ],
+    "response_index": "document.querySelectorAll('response-container').length",
+    "gemini_model": [
+      "document.querySelector('[data-test-id=\"bard-mode-menu-button\"]')?.textContent?.trim() || null",
+      "document.querySelector('[data-test-id=\"logo-pill-label-container\"]')?.textContent?.trim() || null"
+    ],
+    "gemini_tier": [
+      "(window.WIZ_global_data?.['AfY8Hf'] === true) ? 'advanced' : (window.WIZ_global_data?.['AfY8Hf'] === false ? 'standard' : null)",
+      "null"
+    ],
+    "request": "Array.from(document.querySelectorAll('user-query .query-text-line')).at(-1)?.textContent?.trim() || null",
+    "attachments": "Array.from(document.querySelectorAll('.attachment-chip .attachment-name')).map(el => el.textContent.trim()).filter(Boolean)",
+    "webkit_version": "navigator.userAgent.match(/AppleWebKit\\/([\\d.]+)/)?.[1] ?? null",
+    "jsc_version": "navigator.userAgent.match(/AppleWebKit\\/([\\d.]+)/)?.[1] ?? null"
+  }
 }
