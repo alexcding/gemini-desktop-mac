@@ -431,11 +431,6 @@ class AppCoordinator {
             "richTextareaSelector": s.richTextareaSelector,
             "sendButtonSelector": s.sendButtonSelector,
             "lastResponseSelector": s.lastResponseSelector,
-            "conversationTitleSelector": s.conversationTitleSelector,
-            "modelSelector": s.modelSelector,
-            "modelSelectorFallback": s.modelSelectorFallback,
-            "userQuerySelector": s.userQuerySelector,
-            "attachmentSelector": s.attachmentSelector,
             "streamingIndicatorSelector": s.streamingIndicatorSelector
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: dict),

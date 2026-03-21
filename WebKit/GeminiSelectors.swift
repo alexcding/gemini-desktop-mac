@@ -46,13 +46,6 @@ struct GeminiSelectors: Codable {
     let sendButtonSelector: String
     let lastResponseSelector: String
 
-    // MARK: - New metadata selector fields
-
-    let conversationTitleSelector: String
-    let modelSelector: String
-    let modelSelectorFallback: String
-    let userQuerySelector: String
-    let attachmentSelector: String
     let streamingIndicatorSelector: String
 
     // MARK: - Expression-driven metadata fields
@@ -104,11 +97,6 @@ struct GeminiSelectors: Codable {
         richTextareaSelector: "rich-textarea[aria-label='Enter a prompt here']",
         sendButtonSelector: "button[aria-label='Send message']",
         lastResponseSelector: "model-response:last-of-type",
-        conversationTitleSelector: "a.conversation.selected",
-        modelSelector: "[data-test-id=\"bard-mode-menu-button\"]",
-        modelSelectorFallback: "[data-test-id=\"logo-pill-label-container\"]",
-        userQuerySelector: "user-query .query-text-line",
-        attachmentSelector: ".attachment-chip .attachment-name",
         streamingIndicatorSelector: "button.send-button.stop",
         metadata: [
             "conversation_url": .single("window.location.href"),
