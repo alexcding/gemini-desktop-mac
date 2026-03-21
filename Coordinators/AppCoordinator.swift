@@ -443,10 +443,11 @@ class AppCoordinator {
         return json
     }
 
-    private func evaluateJSForCapture(_ script: String) async -> Any? {
+    // String is Sendable — cast inside the completion handler to avoid data race on Any?
+    private func evaluateJSForCapture(_ script: String) async -> String? {
         await withCheckedContinuation { continuation in
             webViewModel.wkWebView.evaluateJavaScript(script) { result, _ in
-                continuation.resume(returning: result)
+                continuation.resume(returning: result as? String)
             }
         }
     }
@@ -465,14 +466,14 @@ class AppCoordinator {
 
         if dom, let result = await evaluateJSForCapture(
             UserScripts.createDOMCaptureScript(selectorJSON: selectorDictJSON())
-        ) as? String,
+        ),
            let parsed = try? JSONSerialization.jsonObject(with: Data(result.utf8)) {
             output["dom"] = parsed
         }
 
         if wiz, let result = await evaluateJSForCapture(
             UserScripts.createWIZCaptureScript()
-        ) as? String,
+        ),
            let parsed = try? JSONSerialization.jsonObject(with: Data(result.utf8)) {
             output["wizState"] = parsed
         }
