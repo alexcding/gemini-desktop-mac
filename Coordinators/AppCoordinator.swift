@@ -21,6 +21,10 @@ class AppCoordinator {
     var openWindowAction: ((String) -> Void)?
     var alwaysOnTop: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alwaysOnTop.rawValue)
 
+    private var windowLevel: NSWindow.Level {
+        alwaysOnTop ? .floating : .normal
+    }
+
     var canGoBack: Bool { webViewModel.canGoBack }
     var canGoForward: Bool { webViewModel.canGoForward }
 
@@ -54,14 +58,20 @@ class AppCoordinator {
     }
 
     func applyAlwaysOnTop() {
-        let level: NSWindow.Level = alwaysOnTop ? .floating : .normal
-
         // Apply to main window
         if let mainWindow = findMainWindow() {
-            mainWindow.level = level
+            mainWindow.level = windowLevel
         }
 
-        // Chat bar panel is always floating by design
+        // Keep chat bar behavior in sync with the same setting
+        if let bar = chatBar {
+            applyChatBarWindowLevel(to: bar)
+        }
+    }
+
+    private func applyChatBarWindowLevel(to chatBar: ChatBarPanel) {
+        chatBar.isFloatingPanel = alwaysOnTop
+        chatBar.level = windowLevel
     }
 
     // MARK: - Chat Bar
@@ -77,6 +87,7 @@ class AppCoordinator {
             if position != .rememberLast {
                 positionChatBar(bar, position: position)
             }
+            applyChatBarWindowLevel(to: bar)
             bar.makeKeyAndOrderFront(nil)
             bar.checkAndAdjustSize()
             return
@@ -93,6 +104,7 @@ class AppCoordinator {
 
         // Position based on setting
         positionChatBar(bar, position: position)
+        applyChatBarWindowLevel(to: bar)
 
         bar.makeKeyAndOrderFront(nil)
         chatBar = bar

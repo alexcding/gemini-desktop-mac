@@ -105,7 +105,6 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
 
     private func configureWindow() {
         isFloatingPanel = true
-        level = .floating
         isMovable = true
         isMovableByWindowBackground = false
 
@@ -124,6 +123,8 @@ class ChatBarPanel: NSPanel, NSWindowDelegate {
     private func setupClickOutsideMonitor() {
         clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
             guard let self = self, self.isVisible else { return }
+            // Don't dismiss when always-on-top (floating) is enabled
+            guard self.level != .floating else { return }
             self.orderOut(nil)
         }
     }
