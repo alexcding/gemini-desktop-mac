@@ -71,7 +71,7 @@ struct ChatBarView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        ZStack(alignment: .topTrailing) {
             GeminiWebView(webView: webView)
 
             // Expand button
@@ -85,7 +85,6 @@ struct ChatBarView: View {
             }
             .buttonStyle(.plain)
             .padding(16)
-            .offset(buttonOffset)
 
             // Invisible drag region in the top bar (between Gemini text and PRO badge)
             VStack {
@@ -104,8 +103,8 @@ struct ChatBarView: View {
     }
 
     private enum Constants {
-        static let dragRegionLeading: CGFloat = 160  // skip past expand button + "Gemini" text
-        static let dragRegionTrailing: CGFloat = 120  // skip past PRO badge + avatar
+        static let dragRegionLeading: CGFloat = 80   // skip past "Gemini" text
+        static let dragRegionTrailing: CGFloat = 160 // skip past expand button + PRO badge + avatar
         static let dragRegionHeight: CGFloat = 38
         static let dragRegionTopPadding: CGFloat = 16
     }

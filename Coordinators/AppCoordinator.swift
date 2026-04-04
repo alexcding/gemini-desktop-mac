@@ -38,6 +38,7 @@ class AppCoordinator {
     func goHome() { webViewModel.loadHome() }
     func reload() { webViewModel.reload() }
     func openNewChat() { webViewModel.openNewChat() }
+    func openTemporaryChat() { webViewModel.openTemporaryChat() }
 
     // MARK: - Zoom
 
@@ -67,6 +68,9 @@ class AppCoordinator {
     // MARK: - Chat Bar
 
     func showChatBar() {
+        // Resume WebView if suspended by inactivity (starts loading before window appears)
+        webViewModel.resumeIfSuspended()
+
         // Hide main window when showing chat bar
         closeMainWindow()
 
@@ -161,6 +165,9 @@ class AppCoordinator {
     }
 
     func openMainWindow(on targetScreen: NSScreen? = nil) {
+        // Resume WebView if suspended by inactivity (starts loading before window appears)
+        webViewModel.resumeIfSuspended()
+
         // Hide chat bar first - WebView can only be in one view hierarchy
         hideChatBar()
 

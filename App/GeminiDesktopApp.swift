@@ -38,6 +38,13 @@ struct GeminiDesktopApp: App {
                     Label("New Chat", systemImage: "plus")
                 }
                 .keyboardShortcut("n", modifiers: .command)
+
+                Button {
+                    coordinator.openTemporaryChat()
+                } label: {
+                    Label("Temporary Chat", systemImage: "bubble.left.and.exclamationmark.bubble.right")
+                }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
             }
 
             CommandGroup(after: .toolbar) {
