@@ -1,4 +1,12 @@
-# Gemini Desktop for macOS (Unofficial)
+# Gemini Desktop for macOS (Unofficial) — Archived
+
+> ## ⚠️ This project is no longer maintained
+>
+> Google now ships an **official Gemini desktop app for macOS**. Please use it instead:
+>
+> ### 👉 https://gemini.google/mac/
+>
+> This unofficial wrapper is **archived** and will not receive further updates or bug fixes. The official app provides a better, supported experience with full feature parity and proper Google authentication handling.
 
 An **unofficial macOS desktop wrapper** for Google Gemini, built as a lightweight desktop app that loads the official Gemini website.
 
