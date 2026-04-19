@@ -42,6 +42,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				"NSScreen+Extensions.swift",
+				SelectionCapture.swift,
 				UserDefaultsKeys.swift,
 			);
 			target = 74CBD8A92EED8FCB00F226E3 /* GeminiDesktop */;

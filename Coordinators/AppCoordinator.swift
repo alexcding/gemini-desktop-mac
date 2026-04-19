@@ -153,6 +153,18 @@ class AppCoordinator {
         }
     }
 
+    /// Captures selected text from the frontmost app, then shows the chat bar
+    /// with that text inserted into the composer.
+    func showChatBarWithSelection() {
+        SelectionCapture.captureSelectedText { [weak self] selection in
+            guard let self = self else { return }
+            self.showChatBar()
+            if let text = selection, !text.isEmpty {
+                self.webViewModel.insertTextIntoComposer(text)
+            }
+        }
+    }
+
     func expandToMainWindow() {
         // Capture the screen where the chat bar is located before hiding it
         let targetScreen = chatBar.flatMap { bar -> NSScreen? in

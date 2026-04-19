@@ -132,6 +132,65 @@ class WebViewModel {
         wkWebView.evaluateJavaScript(script, completionHandler: nil)
     }
 
+    /// Inserts text into the Gemini composer (rich-textarea / Quill contenteditable).
+    /// Retries for a short window so it works even while the page is still loading.
+    func insertTextIntoComposer(_ text: String) {
+        guard let payload = try? JSONSerialization.data(withJSONObject: [text]),
+              let jsonArray = String(data: payload, encoding: .utf8) else { return }
+
+        let script = """
+        (function(payload) {
+            const text = payload[0];
+            const MAX_TRIES = 40;
+            const INTERVAL_MS = 75;
+            let tries = 0;
+
+            function findEditor() {
+                const quill = document.querySelector('div.ql-editor[contenteditable="true"]');
+                if (quill) return quill;
+                const rich = document.querySelector('rich-textarea[aria-label="Enter a prompt here"]');
+                if (rich) {
+                    const inner = rich.querySelector('[contenteditable="true"]');
+                    if (inner) return inner;
+                }
+                return document.querySelector('[contenteditable="true"]')
+                    || document.querySelector('textarea');
+            }
+
+            function attempt() {
+                const editor = findEditor();
+                if (!editor) {
+                    if (++tries < MAX_TRIES) setTimeout(attempt, INTERVAL_MS);
+                    return;
+                }
+                editor.focus();
+                if (editor.tagName === 'TEXTAREA' || editor.tagName === 'INPUT') {
+                    const start = editor.selectionStart || 0;
+                    const end = editor.selectionEnd || 0;
+                    editor.value = editor.value.slice(0, start) + text + editor.value.slice(end);
+                    editor.dispatchEvent(new Event('input', { bubbles: true }));
+                    return;
+                }
+                try {
+                    const dt = new DataTransfer();
+                    dt.setData('text/plain', text);
+                    const evt = new ClipboardEvent('paste', {
+                        bubbles: true, cancelable: true, clipboardData: dt
+                    });
+                    const delivered = editor.dispatchEvent(evt);
+                    if (delivered && !evt.defaultPrevented) {
+                        document.execCommand('insertText', false, text);
+                    }
+                } catch (e) {
+                    document.execCommand('insertText', false, text);
+                }
+            }
+            attempt();
+        })(\(jsonArray));
+        """
+        wkWebView.evaluateJavaScript(script, completionHandler: nil)
+    }
+
     func openTemporaryChat() {
         let script = """
         (function() {
