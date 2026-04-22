@@ -147,6 +147,7 @@ class WebViewModel {
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.allowsBackForwardNavigationGestures = true
         webView.allowsLinkPreview = true
+        webView.allowsMagnification = true
         webView.customUserAgent = userAgent
 
         let savedZoom = UserDefaults.standard.double(forKey: UserDefaultsKeys.pageZoom.rawValue)
