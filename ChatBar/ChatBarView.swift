@@ -56,23 +56,12 @@ class WindowDragNSView: NSView {
 }
 
 struct ChatBarView: View {
-    let webView: WKWebView
+    let webViewModel: WebViewModel
     let onExpandToMain: () -> Void
 
-    /// Calculate button offset based on screen height
-    /// MacBook Air 13" (~900pt): (-6, -2), 1080p (1080pt): (-4, 0)
-    private var buttonOffset: CGSize {
-        let screenHeight = NSScreen.main?.frame.height ?? 900
-        // Interpolate: 900pt -> (-6, -2), 1080pt -> (-4, 0)
-        let t = (screenHeight - 900) / 180  // 0 at 900pt, 1 at 1080pt
-        let xOffset = -6.0 + t * 2.0
-        let yOffset = -2.0 + t * 2.0
-        return CGSize(width: xOffset, height: yOffset)
-    }
-
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            GeminiWebView(webView: webView)
+        ZStack(alignment: .topTrailing) {
+            GeminiWebView(webView: webViewModel.wkWebView)
 
             // Expand button
             Button(action: onExpandToMain) {
@@ -85,7 +74,6 @@ struct ChatBarView: View {
             }
             .buttonStyle(.plain)
             .padding(16)
-            .offset(buttonOffset)
 
             // Invisible drag region in the top bar (between Gemini text and PRO badge)
             VStack {
@@ -104,8 +92,8 @@ struct ChatBarView: View {
     }
 
     private enum Constants {
-        static let dragRegionLeading: CGFloat = 160  // skip past expand button + "Gemini" text
-        static let dragRegionTrailing: CGFloat = 120  // skip past PRO badge + avatar
+        static let dragRegionLeading: CGFloat = 80   // skip past "Gemini" text
+        static let dragRegionTrailing: CGFloat = 160 // skip past expand button + PRO badge + avatar
         static let dragRegionHeight: CGFloat = 38
         static let dragRegionTopPadding: CGFloat = 16
     }

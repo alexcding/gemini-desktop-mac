@@ -4,7 +4,7 @@ import WebKit
 import ServiceManagement
 
 struct SettingsView: View {
-    @Binding var coordinator: AppCoordinator
+    let coordinator: AppCoordinator
     @AppStorage(UserDefaultsKeys.pageZoom.rawValue) private var pageZoom: Double = Constants.defaultPageZoom
     @AppStorage(UserDefaultsKeys.hideWindowAtLaunch.rawValue) private var hideWindowAtLaunch: Bool = false
     @AppStorage(UserDefaultsKeys.hideDockIcon.rawValue) private var hideDockIcon: Bool = false
@@ -53,6 +53,15 @@ struct SettingsView: View {
                     Label("Keyboard Shortcut", systemImage: "command")
                     Spacer()
                     KeyboardShortcuts.Recorder(for: .bringToFront)
+                }
+                HStack {
+                    VStack(alignment: .leading) {
+                        Label("Quick Ask with Selection", systemImage: "text.cursor")
+                        Text("Opens the chat bar and pastes the selected text from the frontmost app. Requires Accessibility permission.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    KeyboardShortcuts.Recorder(for: .bringToFrontWithSelection)
                 }
             }
             Section("Appearance") {

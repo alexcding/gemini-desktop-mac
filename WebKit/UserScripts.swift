@@ -13,10 +13,14 @@ enum UserScripts {
     /// Message handler name for console log bridging
     static let consoleLogHandler = "consoleLog"
 
+    /// Message handler name for conversation state push updates
+    static let conversationStateHandler = "conversationState"
+
     /// Creates all user scripts to be injected into the WebView
     static func createAllScripts() -> [WKUserScript] {
         var scripts: [WKUserScript] = [
-            createIMEFixScript()
+            createIMEFixScript(),
+            createConversationObserverScript()
         ]
 
         #if DEBUG
@@ -45,6 +49,16 @@ enum UserScripts {
         )
     }
 
+    /// Creates a MutationObserver-based script that pushes conversation
+    /// state changes to native code (replaces a 1Hz JS poll).
+    private static func createConversationObserverScript() -> WKUserScript {
+        WKUserScript(
+            source: conversationObserverSource,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+    }
+
     // MARK: - Script Sources
 
     /// JavaScript to bridge console.log to native Swift via WKScriptMessageHandler
@@ -67,10 +81,6 @@ enum UserScripts {
     """
 
     /// JavaScript to fix IME Enter issue on Gemini
-    /// When using IME (e.g., Chinese/Japanese input), pressing Enter to confirm
-    /// the IME composition should NOT send the message. This script intercepts
-    /// Enter keydown events during and immediately after IME composition,
-    /// preventing them from reaching Gemini's send handler.
     private static let imeFixSource = """
     (function() {
         'use strict';
@@ -113,6 +123,60 @@ enum UserScripts {
                 e.preventDefault();
             }
         }, true);
+    })();
+    """
+
+    /// Pushes conversation state to native via MutationObserver instead of polling.
+    /// Posts `{ inConversation: Bool }` only on transitions.
+    private static let conversationObserverSource = """
+    (function() {
+        'use strict';
+        let lastState = null;
+        let scheduled = false;
+
+        function isInConv() {
+            const scroller = document.querySelector('infinite-scroller[data-test-id="chat-history-container"]');
+            if (!scroller) return false;
+            if (scroller.querySelector('response-container') !== null) return true;
+            if (scroller.querySelector('[aria-label="Good response"], [aria-label="Bad response"]') !== null) return true;
+            return false;
+        }
+
+        function publish() {
+            const state = isInConv();
+            if (state === lastState) return;
+            lastState = state;
+            try {
+                window.webkit.messageHandlers.\(conversationStateHandler).postMessage({ inConversation: state });
+            } catch (e) {}
+        }
+
+        function schedule() {
+            if (scheduled) return;
+            scheduled = true;
+            setTimeout(function() { scheduled = false; publish(); }, 100);
+        }
+
+        const observer = new MutationObserver(schedule);
+
+        function start() {
+            if (!document.body) return;
+            observer.observe(document.body, { childList: true, subtree: true });
+            publish();
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', start, { once: true });
+        } else {
+            start();
+        }
+
+        // SPA navigations don't reload the page; re-check on history changes.
+        const origPush = history.pushState;
+        const origReplace = history.replaceState;
+        history.pushState = function() { origPush.apply(this, arguments); schedule(); };
+        history.replaceState = function() { origReplace.apply(this, arguments); schedule(); };
+        window.addEventListener('popstate', schedule);
     })();
     """
 }

@@ -1,13 +1,24 @@
 #!/bin/bash
 
 # Create DMG for Gemini Desktop
-# Usage: ./scripts/create-dmg.sh
+# Usage: ./scripts/create-dmg.sh [path/to/Gemini Desktop.app] [output_dir]
+# Defaults: ~/Downloads/GeminiDesktop/
 
 set -e
 
 APP_NAME="Gemini Desktop"
-APP_PATH="$HOME/Downloads/GeminiDesktop/${APP_NAME}.app"
-OUTPUT_DIR="$HOME/Downloads/GeminiDesktop"
+DEFAULT_DIR="$HOME/Downloads/GeminiDesktop"
+if [ -n "$1" ]; then
+  APP_PATH="$1"
+else
+  APP_PATH="${DEFAULT_DIR}/${APP_NAME}.app"
+fi
+if [ -n "$2" ]; then
+  OUTPUT_DIR="$2"
+else
+  OUTPUT_DIR="$DEFAULT_DIR"
+fi
+mkdir -p "$OUTPUT_DIR"
 DMG_FINAL="${OUTPUT_DIR}/GeminiDesktop.dmg"
 VOLUME_NAME="Gemini Desktop"
 

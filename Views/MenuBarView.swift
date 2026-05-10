@@ -9,7 +9,7 @@ import SwiftUI
 import AppKit
 
 struct MenuBarView: View {
-    @Binding var coordinator: AppCoordinator
+    let coordinator: AppCoordinator
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {

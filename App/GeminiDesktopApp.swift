@@ -13,6 +13,7 @@ import Combine
 // MARK: - Keyboard Shortcut Definition
 extension KeyboardShortcuts.Name {
     static let bringToFront = Self("bringToFront", default: nil)
+    static let bringToFrontWithSelection = Self("bringToFrontWithSelection", default: nil)
 }
 
 // MARK: - Main App
@@ -24,7 +25,7 @@ struct GeminiDesktopApp: App {
 
     var body: some Scene {
         Window(AppCoordinator.Constants.mainWindowTitle, id: Constants.mainWindowID) {
-            MainWindowView(coordinator: $coordinator)
+            MainWindowView(coordinator: coordinator)
                 .toolbarBackground(Color(nsColor: Constants.toolbarColor), for: .windowToolbar)
                 .frame(minWidth: Constants.mainWindowMinWidth, minHeight: Constants.mainWindowMinHeight)
         }
@@ -38,6 +39,13 @@ struct GeminiDesktopApp: App {
                     Label("New Chat", systemImage: "plus")
                 }
                 .keyboardShortcut("n", modifiers: .command)
+
+                Button {
+                    coordinator.openTemporaryChat()
+                } label: {
+                    Label("Temporary Chat", systemImage: "bubble.left.and.exclamationmark.bubble.right")
+                }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
             }
 
             CommandGroup(after: .toolbar) {
@@ -112,12 +120,12 @@ struct GeminiDesktopApp: App {
         }
 
         Settings {
-            SettingsView(coordinator: $coordinator)
+            SettingsView(coordinator: coordinator)
         }
         .defaultSize(width: Constants.settingsWindowDefaultWidth, height: Constants.settingsWindowDefaultHeight)
 
         MenuBarExtra {
-            MenuBarView(coordinator: $coordinator)
+            MenuBarView(coordinator: coordinator)
         } label: {
             Image(systemName: Constants.menuBarIcon)
                 .onAppear {
@@ -149,6 +157,10 @@ struct GeminiDesktopApp: App {
 
         KeyboardShortcuts.onKeyDown(for: .bringToFront) { [self] in
             coordinator.toggleChatBar()
+        }
+
+        KeyboardShortcuts.onKeyDown(for: .bringToFrontWithSelection) { [self] in
+            coordinator.showChatBarWithSelection()
         }
     }
 }

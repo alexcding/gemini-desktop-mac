@@ -16,7 +16,11 @@ struct GeminiWebView: NSViewRepresentable {
         return container
     }
 
-    func updateNSView(_ container: WebViewContainer, context: Context) {}
+    func updateNSView(_ container: WebViewContainer, context: Context) {
+        if container.webView !== webView {
+            container.swapWebView(to: webView)
+        }
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -56,7 +60,6 @@ struct GeminiWebView: NSViewRepresentable {
             let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
             var destination = downloadsURL.appendingPathComponent(suggestedFilename)
 
-            // Handle duplicate filenames
             var counter = 1
             let fileManager = FileManager.default
             let nameWithoutExtension = destination.deletingPathExtension().lastPathComponent
@@ -125,8 +128,6 @@ struct GeminiWebView: NSViewRepresentable {
             panel.allowsMultipleSelection = parameters.allowsMultipleSelection
             panel.canChooseDirectories = parameters.allowsDirectories
             panel.canChooseFiles = true
-            // Activate the app so the file dialog receives focus,
-            // especially when triggered from the non-activating floating panel
             NSApp.activate(ignoringOtherApps: true)
             panel.begin { response in
                 completionHandler(response == .OK ? panel.urls : nil)
@@ -135,7 +136,6 @@ struct GeminiWebView: NSViewRepresentable {
 
         private func isExternalURL(_ url: URL) -> Bool {
             guard let host = url.host?.lowercased() else { return false }
-            // Only Gemini-related domains stay in the app
             let internalHosts = ["gemini.google.com", "accounts.google.com"]
             let internalSuffixes = [".googleapis.com", ".gstatic.com"]
 
@@ -149,7 +149,7 @@ struct GeminiWebView: NSViewRepresentable {
 }
 
 class WebViewContainer: NSView {
-    let webView: WKWebView
+    private(set) var webView: WKWebView
     let coordinator: GeminiWebView.Coordinator
     private var windowObserver: NSObjectProtocol?
 
@@ -158,7 +158,6 @@ class WebViewContainer: NSView {
         self.coordinator = coordinator
         super.init(frame: .zero)
         autoresizesSubviews = true
-        setupWindowObserver()
     }
 
     required init?(coder: NSCoder) {
@@ -171,24 +170,39 @@ class WebViewContainer: NSView {
         }
     }
 
-    private func setupWindowObserver() {
-        // Observe when ANY window becomes key - then check if we should have the webView
-        windowObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.didBecomeKeyNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            guard let self = self,
-                  let keyWindow = notification.object as? NSWindow,
-                  self.window === keyWindow else { return }
-            // Our window became key, attach webView
-            self.attachWebView()
+    /// Swaps the underlying webview. Used when WebViewModel rebuilds its
+    /// WKWebView (e.g. on resume from inactivity suspension).
+    func swapWebView(to newWebView: WKWebView) {
+        guard webView !== newWebView else { return }
+        if webView.superview === self {
+            webView.removeFromSuperview()
+        }
+        webView = newWebView
+        if window != nil {
+            attachWebView()
         }
     }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        if window != nil && window?.isKeyWindow == true {
+
+        // Replace any prior observer with one scoped to the current window.
+        if let observer = windowObserver {
+            NotificationCenter.default.removeObserver(observer)
+            windowObserver = nil
+        }
+
+        guard let window = window else { return }
+
+        windowObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            self?.attachWebView()
+        }
+
+        if window.isKeyWindow {
             attachWebView()
         }
     }

@@ -38,6 +38,7 @@ class AppCoordinator {
     func goHome() { webViewModel.loadHome() }
     func reload() { webViewModel.reload() }
     func openNewChat() { webViewModel.openNewChat() }
+    func openTemporaryChat() { webViewModel.openTemporaryChat() }
 
     // MARK: - Zoom
 
@@ -67,6 +68,9 @@ class AppCoordinator {
     // MARK: - Chat Bar
 
     func showChatBar() {
+        // Resume WebView if suspended by inactivity (starts loading before window appears)
+        webViewModel.resumeIfSuspended()
+
         // Hide main window when showing chat bar
         closeMainWindow()
 
@@ -83,13 +87,13 @@ class AppCoordinator {
         }
 
         let contentView = ChatBarView(
-            webView: webViewModel.wkWebView,
+            webViewModel: webViewModel,
             onExpandToMain: { [weak self] in
                 self?.expandToMainWindow()
             }
         )
         let hostingView = NSHostingView(rootView: contentView)
-        let bar = ChatBarPanel(contentView: hostingView)
+        let bar = ChatBarPanel(contentView: hostingView, webViewModel: webViewModel)
 
         // Position based on setting
         positionChatBar(bar, position: position)
@@ -149,6 +153,18 @@ class AppCoordinator {
         }
     }
 
+    /// Captures selected text from the frontmost app, then shows the chat bar
+    /// with that text inserted into the composer.
+    func showChatBarWithSelection() {
+        SelectionCapture.captureSelectedText { [weak self] selection in
+            guard let self = self else { return }
+            self.showChatBar()
+            if let text = selection, !text.isEmpty {
+                self.webViewModel.insertTextIntoComposer(text)
+            }
+        }
+    }
+
     func expandToMainWindow() {
         // Capture the screen where the chat bar is located before hiding it
         let targetScreen = chatBar.flatMap { bar -> NSScreen? in
@@ -161,6 +177,9 @@ class AppCoordinator {
     }
 
     func openMainWindow(on targetScreen: NSScreen? = nil) {
+        // Resume WebView if suspended by inactivity (starts loading before window appears)
+        webViewModel.resumeIfSuspended()
+
         // Hide chat bar first - WebView can only be in one view hierarchy
         hideChatBar()
 
